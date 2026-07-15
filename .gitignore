@@ -38,6 +38,10 @@ Thumbs.db
 *.log
 
 
+# Node / Next.js
+ui/node_modules/
+ui/.next/
+
 # folder not to be tracked
-processedd_data/*
+processed_data/*
 DATA/*

@@ -1,18 +1,84 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "enterprise-agentic-rag"
 version = "0.1.0"
-description = "Add your description here"
+description = "Enterprise Agentic RAG with LangGraph, Guardrails, and LLM Gateway"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.12"
 dependencies = [
-    "beautifulsoup4>=4.15.0",
-    "dotenv>=0.9.9",
-    "langchain-google-genai>=4.2.7",
-    "langsmith>=0.10.2",
+    "beautifulsoup4==4.14.3",
+    "fastapi==0.136.1",
+    "langchain-openai==1.2.1",
+    "langgraph==1.1.10",
+    "langgraph-checkpoint-postgres==2.0.16",
+    "langsmith==0.8.3",
     "logfire[fastapi,requests]>=4.37.0",
+    "pandas>=1.4,<3",
     "pdfplumber>=0.11.10",
-    "pypdf>=6.14.2",
-    "qdrant-client>=1.18.0",
-    "sentence-transformers>=5.6.0",
+    "portkey-ai==2.3.0",
+    "prometheus-client==0.25.0",
+    "prometheus-fastapi-instrumentator==8.0.2",
+    "psycopg-binary==3.3.0",
+    "psycopg-pool==3.3.0",
+    "pydantic-settings==2.14.2",
+    "pypdf==6.11.0",
+    "python-dotenv==1.2.2",
+    "qdrant-client==1.17.1",
+    "redis==7.4.0",
+    "requests==2.33.1",
+    "sentence-transformers==3.2.1",
+    "streamlit==1.58.0",
+    "tenacity==9.1.2",
     "unstructured[docx,pptx]>=0.24.1",
+    "uvicorn[standard]==0.46.0",
+    "nemoguardrails==0.21.0",
+    "slowapi==0.1.9",
+    "dataclasses-json>=0.6.7",
+    "langchain-community==0.4.1",
 ]
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4.0",
+    "pytest-asyncio>=0.25.0",
+    "ruff>=0.11.0",
+    "ragas",
+    "deepeval",
+    "nest-asyncio",
+    "locust",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*", "ui*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --tb=short"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+exclude = [
+    ".venv",
+    "node_modules",
+    "__pycache__",
+    ".git",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Import order is intentionally deferred so logfire/dotenv are configured first.
+"app/main.py" = ["E402"]
+"app/ingestion/processor.py" = ["E402", "I001"]
+
+# __init__.py files re-export public symbols.
+"app/**/__init__.py" = ["F401"]
+
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

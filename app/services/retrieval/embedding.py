@@ -1,6 +1,7 @@
+import time
 import logfire
 import requests
-from tenacity import before_sleep_log, retry, stop_after_attempt, wait_exponential
+from tenacity import before_sleep_log, retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from app.config import settings
 
@@ -98,10 +99,11 @@ def get_embedding_dim() -> int:
 
 # Jina API embedding
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=1, max=5),
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=4, max=120),
     reraise=True,
     before_sleep=before_sleep_log(logfire, "warning"),
+    retry=retry_if_exception_type((requests.Timeout, requests.ConnectionError, requests.HTTPError)),
 )
 def embed_jina_batch(texts: list[str], task: str) -> list[list[float]]:
     """Call the Jina Embeddings API for a single batch."""
@@ -119,6 +121,12 @@ def embed_jina_batch(texts: list[str], task: str) -> list[list[float]]:
         },
         timeout=60,
     )
+
+    if response.status_code == 429:
+        retry_after = response.headers.get("Retry-After")
+        if retry_after:
+            raise requests.HTTPError(f"429 Too Many Requests — retry after {retry_after}s", response=response)
+
     response.raise_for_status()
     payload = response.json()
 
@@ -129,13 +137,16 @@ def embed_jina_batch(texts: list[str], task: str) -> list[list[float]]:
 
 
 def _embed_jina(texts: list[str], task: str) -> list[list[float]]:
-    """Embed texts via the Jina API in batches with retry."""
+    """Embed texts via the Jina API in batches with retry and inter-batch delay."""
     all_embeddings: list[list[float]] = []
     for i in range(0, len(texts), settings.BATCH_SIZE):
         batch = texts[i : i + settings.BATCH_SIZE]
         with logfire.span("Embed batch via Jina API", start=i, size=len(batch)):
             embeddings = embed_jina_batch(batch, task)
             all_embeddings.extend(embeddings)
+        # Throttle between batches to respect rate limits
+        if i + settings.BATCH_SIZE < len(texts):
+            time.sleep(settings.JINA_RATE_LIMIT_DELAY)
     return all_embeddings
 
 
