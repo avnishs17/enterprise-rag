@@ -17,7 +17,6 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from prometheus_client import Counter, Histogram
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
 
@@ -25,25 +24,10 @@ from app.agents.graph import build_graph
 from app.guardrails import guard, initialize_rails
 from app.health import router as health_router
 from app.ingestion.routes import router as ingest_router
+from app.metrics import GUARDRAILS_BLOCKS_TOTAL, RAG_REQUEST_DURATION, RAG_REQUESTS_TOTAL
+from app.streaming import StreamQueryRequest, stream_query
 from app.logging import set_request_id
 from app.services.health.connection_checker import check_all_connections, log_connection_summary
-
-RAG_REQUESTS_TOTAL = Counter(
-    "rag_requests_total",
-    "Total number of /query requests",
-    ["status"],
-)
-
-RAG_REQUEST_DURATION = Histogram(
-    "rag_request_duration_seconds",
-    "Latency of /query requests in seconds",
-)
-
-GUARDRAILS_BLOCKS_TOTAL = Counter(
-    "guardrails_blocks_total",
-    "Number of requests blocked or allowed by guardrails",
-    ["blocked"],
-)
 
 _security = HTTPBearer(auto_error=False)
 
@@ -113,17 +97,30 @@ class _AppLimiter:
 
     def limit(self, rule_or_callable):
         def decorator(func):
+            import asyncio
             import functools
 
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                limiter = getattr(app.state, "limiter", None)
+            is_async = asyncio.iscoroutinefunction(func)
 
-                if limiter is None:
-                    return func(*args, **kwargs)
+            if is_async:
 
-                rule = rule_or_callable() if callable(rule_or_callable) else rule_or_callable
-                return limiter.limit(rule)(func)(*args, **kwargs)
+                @functools.wraps(func)
+                async def wrapper(*args, **kwargs):
+                    limiter = getattr(app.state, "limiter", None)
+                    if limiter is None:
+                        return await func(*args, **kwargs)
+                    rule = rule_or_callable() if callable(rule_or_callable) else rule_or_callable
+                    return await limiter.limit(rule)(func)(*args, **kwargs)
+
+            else:
+
+                @functools.wraps(func)
+                def wrapper(*args, **kwargs):
+                    limiter = getattr(app.state, "limiter", None)
+                    if limiter is None:
+                        return func(*args, **kwargs)
+                    rule = rule_or_callable() if callable(rule_or_callable) else rule_or_callable
+                    return limiter.limit(rule)(func)(*args, **kwargs)
 
             return wrapper
 
@@ -149,7 +146,7 @@ app = FastAPI(title="Enterprise Agentic RAG API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=settings.CORS_ORIGINS.split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -324,3 +321,13 @@ def query(
                     "message": "Failed to process request. Please try again later.",
                 },
             )
+
+
+@app.post("/query/stream")
+@rate_limit()
+async def query_stream(
+    request: Request,
+    body: StreamQueryRequest,
+    _api_key: str = Depends(verify_api_key),
+):
+    return stream_query(q=body.q, thread_id=body.thread_id or "default_user")

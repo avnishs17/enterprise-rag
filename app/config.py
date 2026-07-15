@@ -62,6 +62,18 @@ class Settings(BaseSettings):
     API_KEY: str | None = Field(default=None, alias="RAG_API_KEY")
     RATE_LIMIT_PER_MINUTE: int = 20
     STRICT_STARTUP: bool = False
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+
+    # --- CONVERSATION ---
+    # Maximum approximate tokens (~4 chars per token) of conversation history
+    # sent to the LLM with each request. Older messages are dropped first
+    # when the budget is exceeded. 0 = unlimited.
+    MAX_HISTORY_TOKENS: int = 2000
+
+    # --- MEM0 (long-term memory) ---
+    # Mem0 Cloud API key for persisting and retrieving conversation memories.
+    # Leave empty to disable long-term memory.
+    MEM0_API_KEY: str = ""
 
     # --- OBSERVABILITY ---
     # Logfire Observability

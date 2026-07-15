@@ -1,49 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { cn } from "../../lib/utils";
 import type { ChatMessage as ChatMessageType } from "../../lib/types";
 import { ThoughtProcess } from "./ThoughtProcess";
 import { SourcesPanel } from "./SourcesPanel";
 
+const SOURCE_LABELS: Record<string, { label: string; color: string }> = {
+  memory: { label: "Memory", color: "bg-violet-600" },
+  rag_documents: { label: "RAG", color: "bg-emerald-600" },
+  conversation_history: { label: "History", color: "bg-amber-600" },
+};
+
 interface ChatMessageProps {
   message: ChatMessageType;
-  isLatest?: boolean;
 }
 
-export function ChatMessage({ message, isLatest }: ChatMessageProps) {
+export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user";
-  const [displayedText, setDisplayedText] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-
-  useEffect(() => {
-    if (!isLatest || message.role !== "assistant" || !message.content) return;
-    if (message.content.startsWith("Error:")) {
-      setDisplayedText(message.content);
-      return;
-    }
-
-    setIsStreaming(true);
-    let index = 0;
-    setDisplayedText("");
-
-    const interval = setInterval(() => {
-      if (index < message.content.length) {
-        setDisplayedText(message.content.slice(0, index + 1));
-        index++;
-      } else {
-        clearInterval(interval);
-        setIsStreaming(false);
-      }
-    }, 5);
-
-    return () => clearInterval(interval);
-  }, [isLatest, message.content, message.role]);
-
-  const displayContent =
-    isLatest && !isUser && isStreaming
-      ? displayedText
-      : message.content;
 
   return (
     <div
@@ -61,9 +34,30 @@ export function ChatMessage({ message, isLatest }: ChatMessageProps) {
         )}
       >
         <p className="whitespace-pre-wrap text-sm leading-relaxed">
-          {displayContent}
-          {isStreaming && <span className="animate-pulse">▌</span>}
+          {message.content || (
+            <span className="opacity-50">Generating response...</span>
+          )}
         </p>
+
+        {!isUser && message.sourcesUsed && message.sourcesUsed.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            {message.sourcesUsed.map((s) => {
+              const info = SOURCE_LABELS[s];
+              if (!info) return null;
+              return (
+                <span
+                  key={s}
+                  className={cn(
+                    "px-2 py-0.5 rounded-full text-[10px] font-medium text-white",
+                    info.color,
+                  )}
+                >
+                  {info.label}
+                </span>
+              );
+            })}
+          </div>
+        )}
 
         {!isUser && message.thoughtProcess && message.thoughtProcess.length > 0 && (
           <ThoughtProcess steps={message.thoughtProcess} />

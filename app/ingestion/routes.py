@@ -1,3 +1,4 @@
+import asyncio
 import os
 import tempfile
 
@@ -42,11 +43,11 @@ async def ingest_document(
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}")
     try:
-        content = await file.read()
-        tmp.write(content)
+        while chunk := await file.read(65536):
+            tmp.write(chunk)
         tmp.close()
 
-        process_file(tmp.name, file.filename or "uploaded_file", source_type)
+        await asyncio.to_thread(process_file, tmp.name, file.filename or "uploaded_file", source_type)
 
         return {
             "status": "success",

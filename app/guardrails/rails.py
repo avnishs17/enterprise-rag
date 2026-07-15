@@ -30,7 +30,7 @@ def initialize_rails() -> None:
 
     logfire.info(
         "NeMo Guardrails initialized.",
-        model=settings.PRIMARY_MODEL,
+        model="gpt-5-mini",
     )
 
 

@@ -6,6 +6,7 @@ export interface ChatMessage {
   content: string;
   thoughtProcess?: string[];
   sources?: string[];
+  sourcesUsed?: string[];
 }
 
 export interface QueryRequest {

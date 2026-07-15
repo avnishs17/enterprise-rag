@@ -1,11 +1,14 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import { query } from "../lib/api";
-import type { ChatMessage, QueryResponse } from "../lib/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { queryStream } from "../lib/api";
+import type { ChatMessage } from "../lib/types";
 
 function generateId(): string {
-  return crypto.randomUUID();
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
 interface UseChatOptions {
@@ -26,10 +29,23 @@ export function useChat({ threadId: externalThreadId }: UseChatOptions = {}): Us
   const [error, setError] = useState<string | null>(null);
   const threadIdRef = useRef<string>(externalThreadId || generateId());
   const abortRef = useRef<AbortController | null>(null);
+  const pendingRef = useRef(false);
+  const tokenQueueRef = useRef<string[]>([]);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    };
+  }, []);
 
   const sendMessage = useCallback(async (content: string) => {
-    if (!content.trim() || isPending) return;
+    if (!content.trim()) return;
+    if (pendingRef.current) return;
 
+    pendingRef.current = true;
+    setIsPending(true);
     setError(null);
 
     const userMessage: ChatMessage = {
@@ -39,37 +55,112 @@ export function useChat({ threadId: externalThreadId }: UseChatOptions = {}): Us
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setIsPending(true);
 
+    const assistantId = generateId();
     const assistantMessage: ChatMessage = {
-      id: generateId(),
+      id: assistantId,
       role: "assistant",
       content: "",
+      thoughtProcess: [],
+      sources: [],
     };
 
     setMessages((prev) => [...prev, assistantMessage]);
 
-    abortRef.current = new AbortController();
+    const abortController = new AbortController();
+    abortRef.current = abortController;
 
-    try {
-      const data = await query(
-        { q: content.trim(), thread_id: threadIdRef.current },
-        abortRef.current.signal,
-      );
-
+    const flushTokens = () => {
+      flushTimerRef.current = null;
+      const tokens = tokenQueueRef.current;
+      tokenQueueRef.current = [];
+      if (tokens.length === 0) return;
+      const chunk = tokens.join("");
       setMessages((prev) => {
         const updated = [...prev];
         const last = updated[updated.length - 1];
-        if (last && last.role === "assistant" && last.id === assistantMessage.id) {
+        if (last && last.role === "assistant" && last.id === assistantId) {
           updated[updated.length - 1] = {
             ...last,
-            content: data.answer,
-            thoughtProcess: data.thought_process,
-            sources: data.sources,
+            content: last.content + chunk,
           };
         }
         return updated;
       });
+    };
+
+    try {
+      const stream = queryStream(
+        { q: content.trim(), thread_id: threadIdRef.current },
+        abortController.signal,
+      );
+
+      for await (const event of stream) {
+        switch (event.event) {
+          case "thought":
+            // flush any pending tokens first so thought steps appear after current text
+            if (flushTimerRef.current) {
+              clearTimeout(flushTimerRef.current);
+              flushTokens();
+            }
+            setMessages((prev) => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last && last.role === "assistant" && last.id === assistantId) {
+                updated[updated.length - 1] = {
+                  ...last,
+                  thoughtProcess: [...(last.thoughtProcess || []), event.data.content],
+                };
+              }
+              return updated;
+            });
+            break;
+
+          case "token":
+            tokenQueueRef.current.push(event.data.content);
+            if (!flushTimerRef.current) {
+              flushTimerRef.current = setTimeout(flushTokens, 15);
+            }
+            break;
+
+          case "source":
+            setMessages((prev) => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last && last.role === "assistant" && last.id === assistantId) {
+                updated[updated.length - 1] = {
+                  ...last,
+                  sources: event.data.chunks,
+                };
+              }
+              return updated;
+            });
+            break;
+
+          case "error":
+            setError(event.data.message);
+            abortController.abort();
+            break;
+
+          case "done":
+            if (flushTimerRef.current) {
+              clearTimeout(flushTimerRef.current);
+              flushTokens();
+            }
+            setMessages((prev) => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last && last.role === "assistant" && last.id === assistantId) {
+                updated[updated.length - 1] = {
+                  ...last,
+                  sourcesUsed: event.data.sources_used,
+                };
+              }
+              return updated;
+            });
+            break;
+        }
+      }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
 
@@ -79,7 +170,7 @@ export function useChat({ threadId: externalThreadId }: UseChatOptions = {}): Us
       setMessages((prev) => {
         const updated = [...prev];
         const last = updated[updated.length - 1];
-        if (last && last.role === "assistant" && last.id === assistantMessage.id) {
+        if (last && last.role === "assistant" && last.id === assistantId && !last.content) {
           updated[updated.length - 1] = {
             ...last,
             content: `Error: ${message}`,
@@ -88,10 +179,15 @@ export function useChat({ threadId: externalThreadId }: UseChatOptions = {}): Us
         return updated;
       });
     } finally {
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTokens();
+      }
       setIsPending(false);
+      pendingRef.current = false;
       abortRef.current = null;
     }
-  }, [isPending]);
+  }, []);
 
   const clearHistory = useCallback(() => {
     abortRef.current?.abort();
@@ -99,6 +195,7 @@ export function useChat({ threadId: externalThreadId }: UseChatOptions = {}): Us
     setMessages([]);
     setError(null);
     setIsPending(false);
+    pendingRef.current = false;
   }, []);
 
   return { messages, isPending, error, sendMessage, clearHistory };

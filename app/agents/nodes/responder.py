@@ -6,15 +6,33 @@ from app.config import settings
 from app.gateway import extract_cache_status, portkey_client
 
 
+def _history_from_messages(messages: list[dict], max_tokens: int = 2000) -> str:
+    if max_tokens <= 0:
+        recent = messages[:-1]
+    else:
+        char_budget = max_tokens * 4
+        recent = []
+        total = 0
+        for m in reversed(messages[:-1]):
+            cost = len(m.get("content", "")) + 20
+            if total + cost > char_budget:
+                break
+            recent.append(m)
+            total += cost
+        recent.reverse()
+
+    lines = []
+    for message in recent:
+        role = "User" if message["role"] == "user" else "Assistant"
+        lines.append(f"{role}: {message['content']}")
+    return "\n".join(lines)
+
+
 def generate_node(state: AgentState):
     """Generates a conversational or context-grounded response through Portkey."""
     query = state["current_query"]
-
-    history = ""
-
-    for message in state["messages"][:-1]:
-        role = "User" if message["role"] == "user" else "Assistant"
-        history += f"{role}: {message['content']}\n"
+    history = _history_from_messages(state["messages"], settings.MAX_HISTORY_TOKENS)
+    memories = state.get("memories", "")
 
     user_message = (
         state["messages"][-1]["content"]
@@ -25,11 +43,12 @@ def generate_node(state: AgentState):
     if query == "CONVERSATIONAL":
         logfire.info("Generating conversational response using memory.")
 
+        memories_section = f"\nRELEVANT MEMORIES:\n{memories}\n" if memories else ""
+
         prompt = f"""
 You are a friendly and helpful enterprise AI assistant.
 
-Answer the latest user message using the CONVERSATION HISTORY below.
-
+Answer the latest user message using the conversation history and relevant memories below.{memories_section}
 CONVERSATION HISTORY:
 {history}
 
@@ -52,14 +71,15 @@ LATEST MESSAGE:
 
             context += f"{document}\n\n"
 
+        memories_section = f"\nRELEVANT MEMORIES:\n{memories}\n" if memories else ""
+
         prompt = f"""
 You are a senior technical architect.
 
 Answer the user's question using the provided TECHNICAL CONTEXT.
 
 TECHNICAL CONTEXT:
-{context}
-
+{context}{memories_section}
 CONVERSATION HISTORY:
 {history}
 
@@ -118,3 +138,121 @@ def _generate_response(prompt: str):
             }
         ],
     )
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=5),
+    reraise=True,
+    before_sleep=before_sleep_log(logfire, "warning"),
+)
+def _stream_response(prompt: str):
+    """Streams an LLM response token by token via Portkey."""
+    return portkey_client.chat.completions.create(
+        model=f"@{settings.PORTKEY_PRIMARY_SLUG}/{settings.PRIMARY_MODEL}",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        stream=True,
+    )
+
+
+def build_rag_prompt(state: AgentState) -> str:
+    """Builds the prompt from state, shared by sync and streaming paths."""
+    query = state["current_query"]
+    history = _history_from_messages(state["messages"], settings.MAX_HISTORY_TOKENS)
+    memories = state.get("memories", "")
+
+    user_message = (
+        state["messages"][-1]["content"]
+        if state["messages"]
+        else ""
+    )
+
+    if query == "CONVERSATIONAL":
+        memories_section = f"\nRELEVANT MEMORIES:\n{memories}\n" if memories else ""
+
+        return f"""
+You are a friendly and helpful enterprise AI assistant.
+
+Answer the latest user message using the conversation history and relevant memories below.{memories_section}
+CONVERSATION HISTORY:
+{history}
+
+LATEST MESSAGE:
+"{user_message}"
+"""
+
+    max_context_chars = 25000
+    context = ""
+    for document in state["documents"]:
+        if len(context) + len(document) >= max_context_chars:
+            logfire.warning(
+                "Context truncated to fit TPM limit.",
+                max_context_chars=max_context_chars,
+            )
+            break
+        context += f"{document}\n\n"
+
+    memories_section = f"\nRELEVANT MEMORIES:\n{memories}\n" if memories else ""
+
+    return f"""
+You are a senior technical architect.
+
+Answer the user's question using the provided TECHNICAL CONTEXT.
+
+TECHNICAL CONTEXT:
+{context}{memories_section}
+CONVERSATION HISTORY:
+{history}
+
+USER QUESTION:
+"{user_message}"
+"""
+
+
+def generate_node_stream(state: AgentState):
+    """
+    Generator that yields tokens from the LLM streaming response.
+    After exhausting the generator, read the final
+    answer from `generate_node_stream.last_result`.
+    Note: not thread-safe; only one active call per process.
+    """
+    prompt = build_rag_prompt(state)
+
+    with logfire.span("LLM synthesis (streaming)"):
+        stream = _stream_response(prompt)
+        full_content: list[str] = []
+
+        for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content:
+                token = chunk.choices[0].delta.content
+                full_content.append(token)
+                yield token
+
+        content = "".join(full_content)
+        cache_status = extract_cache_status(stream)
+
+        if cache_status == "HIT":
+            logfire.info("Streaming response served from Portkey cache.")
+
+        logfire.info("Streaming LLM response completed.")
+
+        # Store the result so the caller can retrieve it
+        generate_node_stream.last_result = {
+            "final_answer": content,
+            "status": "Response generated.",
+            "plan": state["plan"] + (["Cache: Hit"] if cache_status == "HIT" else []),
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": content,
+                }
+            ],
+        }
+
+
+generate_node_stream.last_result = None

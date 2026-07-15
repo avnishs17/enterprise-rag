@@ -2,7 +2,7 @@ import operator
 from typing import Annotated, List, TypedDict
 
 
-class AgentState(TypedDict):
+class AgentState(TypedDict, total=False):
     """Shared state passed between nodes in the agent workflow."""
 
     # Append new messages instead of replacing the conversation history.

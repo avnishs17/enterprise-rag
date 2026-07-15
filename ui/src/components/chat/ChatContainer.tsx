@@ -8,7 +8,6 @@ import { ChatInput } from "./ChatInput";
 export function ChatContainer() {
   const { messages, isPending, error, sendMessage, clearHistory } = useChat();
   const bottomRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -33,7 +32,7 @@ export function ChatContainer() {
         </button>
       </div>
 
-      <div ref={containerRef} className="flex-1 overflow-y-auto py-4">
+      <div className="flex-1 overflow-y-auto py-4">
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <div className="text-center">
@@ -50,16 +49,12 @@ export function ChatContainer() {
         )}
 
         <div className="space-y-1">
-          {messages.map((msg, i) => (
-            <ChatMessage
-              key={msg.id}
-              message={msg}
-              isLatest={i === messages.length - 1}
-            />
+          {messages.map((msg) => (
+            <ChatMessage key={msg.id} message={msg} />
           ))}
         </div>
 
-        {isPending && messages[messages.length - 1]?.role === "assistant" && (
+        {isPending && messages[messages.length - 1]?.role === "assistant" && !messages[messages.length - 1].content && (
           <div className="flex items-center gap-2 px-4 py-2">
             <div className="flex space-x-1">
               <div className="h-2 w-2 animate-bounce rounded-full bg-zinc-500" />
