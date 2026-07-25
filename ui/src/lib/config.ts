@@ -1,20 +1,7 @@
-function getEnv(name: string, fallback: string): string {
-  if (typeof process !== "undefined" && process.env?.[name]) {
-    return process.env[name]!;
-  }
-  return fallback;
-}
-
+// Browser requests stay same-origin. The Next.js route handler owns the
+// server-only backend URL and bearer token, so no backend credential is put in
+// NEXT_PUBLIC_* or shipped in the JavaScript bundle.
 export const config = {
-  get apiBaseUrl(): string {
-    return getEnv("NEXT_PUBLIC_API_URL", "http://localhost:8000");
-  },
-
-  get apiKey(): string {
-    return getEnv("NEXT_PUBLIC_API_KEY", "");
-  },
-
-  get appName(): string {
-    return "Enterprise Agentic RAG";
-  },
+  apiBaseUrl: "/api/rag",
+  appName: "Enterprise Agentic RAG",
 } as const;

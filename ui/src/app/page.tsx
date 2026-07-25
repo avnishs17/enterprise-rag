@@ -15,7 +15,7 @@ export default function Home() {
     <div className="flex h-screen">
       <Sidebar threadId={threadId} />
       <main className="flex flex-1 flex-col">
-        <ChatContainer />
+        {threadId && <ChatContainer threadId={threadId} onThreadChange={setThreadId} />}
       </main>
     </div>
   );

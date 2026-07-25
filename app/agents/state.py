@@ -12,3 +12,4 @@ class AgentState(TypedDict, total=False):
     plan: List[str]
     status: str
     final_answer: str
+    memories: str

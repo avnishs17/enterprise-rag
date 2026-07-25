@@ -5,16 +5,12 @@ import json
 import logfire
 
 
-# logfire must be configured before app module imports so spans from
-# chunking/loaders/embedding are captured from the start.
+# Configure observability before loading ingestion dependencies, while keeping
+# API imports from configuring Logfire a second time.
 from app.config import settings
+from app.utils.observability import configure_logfire
 
-if settings.LOGFIRE_TOKEN:
-    logfire.configure(
-        token=settings.LOGFIRE_TOKEN,
-        service_name=settings.LOGFIRE_PROJECT,
-        advanced=logfire.AdvancedOptions(base_url=settings.LOGFIRE_BASE_URL),
-    )
+configure_logfire()
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
@@ -65,13 +61,12 @@ def process_file(file_path: str, filename: str, source_type: str):
                 return
 
             if not full_text or not full_text.strip():
-                logfire.warning(f"No text extracted from {filename} — skipping.")
-                return
+                raise ValueError("No extractable text found in document")
 
             # 2. Chunk text
             chunks = chunk_text(full_text)
             if not chunks:
-                return
+                raise ValueError("No chunks could be created from document")
 
             # 3. Save processed metadata locally
             processed_data = {
@@ -104,8 +99,9 @@ def process_file(file_path: str, filename: str, source_type: str):
                 )
                 logfire.info(f"Indexed {len(points)} points to Qdrant from {filename}.")
 
-        except Exception as e:
-            logfire.error(f"Failed to process {filename}: {e}")
+        except Exception:
+            logfire.exception(f"Failed to process {filename}")
+            raise
 
 
 def process_directory(dir_path: str, source_type: str):

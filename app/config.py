@@ -1,7 +1,12 @@
 import os
+from pathlib import Path
+from urllib.parse import quote, urlunsplit
+
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from urllib.parse import quote, urlunsplit
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 
 class Settings(BaseSettings):
     """
@@ -11,7 +16,9 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # Resolve relative to the repository, not the process working
+        # directory, so API startup also works when launched from ui/.
+        env_file=PROJECT_ROOT / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -33,18 +40,42 @@ class Settings(BaseSettings):
 
     # --- LLM CONFIGURATION ---
     GROQ_API_KEY: str
-    OPENAI_API_KEY: str
+    # Nebius Token Factory is OpenAI-compatible and is used by Guardrails.
+    NEBIUS_API_KEY: str
+    NEBIUS_BASE_URL: str = "https://api.tokenfactory.nebius.com/v1/"
+    NEBIUS_MODEL: str = "google/gemma-3-27b-it"
+    LLM_TEMPERATURE: float = 0.1
+    LLM_SEED: int = 42
+    LLM_FREQUENCY_PENALTY: float = 0.1
+    # Maximum idle/read time for planner and generation provider calls. A
+    # streamed response may run longer while tokens continue arriving.
+    LLM_REQUEST_TIMEOUT_SECONDS: float = 45.0
+    # Retained only for older evaluation configuration; runtime RAG does not
+    # call OpenAI directly.
+    OPENAI_API_KEY: str = ""
     JUDGE_GROQ_API_KEY: str
 
-    # --- LLM GATEWAY (PORTKEY) ---
-    PORTKEY_API_KEY: str
-    PORTKEY_PRIMARY_SLUG: str = "openai-slig"
+    # --- LLM ROUTING ---
+    # Set true only when a funded Portkey account/config is available. When
+    # false, the application routes Nebius failures directly to Groq.
+    USE_PORTKEY: bool = False
+
+    # --- LLM GATEWAY (PORTKEY, optional) ---
+    PORTKEY_API_KEY: str = ""
+    PORTKEY_PRIMARY_SLUG: str = "nebius-slug2"
     PORTKEY_FALLBACK_SLUG: str = "groq-fallback"
-    PRIMARY_MODEL: str = "gpt-5-mini"
+    PRIMARY_MODEL: str = "google/gemma-3-27b-it"
     FALLBACK_LLM_MODEL: str = "llama-3.3-70b-versatile"
-    # Portkey saved config is referenced by its system-generated `pc-...` ID.
-    # Required when block_inline_config is enabled on the workspace.
-    PORTKEY_PRIMARY_CONFIG_ID: str
+    # Dedicated policy-classification model, deliberately separate from the
+    # RAG generation fallback model.
+    GROQ_SAFEGUARD_MODEL: str = "openai/gpt-oss-safeguard-20b"
+    GROQ_SAFEGUARD_TIMEOUT_SECONDS: float = 15.0
+    # "groq_safeguard" is the production default after the A/B evaluation;
+    # "nemo" remains available as an explicit rollback setting.
+    GUARDRAIL_PROVIDER: str = "groq_safeguard"
+    # Required only when USE_PORTKEY=true.
+    PORTKEY_PRIMARY_CONFIG_ID: str = ""
+    GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
 
     # --- QDRANT VECTOR DB ---
     QDRANT_URL: str = Field(validation_alias=AliasChoices("QDRANT_URL", "QDRANT_CLUSTER_ENDPOINT"))
@@ -60,15 +91,22 @@ class Settings(BaseSettings):
 
     # --- API SAFETY ---
     API_KEY: str | None = Field(default=None, alias="RAG_API_KEY")
+    ENVIRONMENT: str = "development"
     RATE_LIMIT_PER_MINUTE: int = 20
     STRICT_STARTUP: bool = False
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+    TRUSTED_HOSTS: str = "localhost,127.0.0.1,testserver"
+    MAX_UPLOAD_BYTES: int = 25 * 1024 * 1024
 
     # --- CONVERSATION ---
     # Maximum approximate tokens (~4 chars per token) of conversation history
     # sent to the LLM with each request. Older messages are dropped first
     # when the budget is exceeded. 0 = unlimited.
     MAX_HISTORY_TOKENS: int = 2000
+    # Exact thread history is stored separately from Mem0 so recent turns are
+    # deterministic and do not depend on semantic-memory extraction.
+    MAX_CONVERSATION_MESSAGES: int = 20
+    CONVERSATION_HISTORY_TTL_SECONDS: int = 30 * 24 * 60 * 60
 
     # --- MEM0 (long-term memory) ---
     # Mem0 Cloud API key for persisting and retrieving conversation memories.
@@ -97,9 +135,21 @@ class Settings(BaseSettings):
         return v
 
     @property
+    def is_production(self) -> bool:
+        return self.ENVIRONMENT.lower() in {"production", "prod"}
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def trusted_hosts(self) -> list[str]:
+        return [host.strip() for host in self.TRUSTED_HOSTS.split(",") if host.strip()]
+
+    @property
     def judge_api_key(self) -> str:
-        """Dedicated judge key, falling back to the main OpenAI key."""
-        return self.JUDGE_GROQ_API_KEY or self.OPENAI_API_KEY
+        """Dedicated judge key, falling back to the configured Nebius key."""
+        return self.JUDGE_GROQ_API_KEY or self.NEBIUS_API_KEY
 
     @property
     def postgres_uri(self) -> str:

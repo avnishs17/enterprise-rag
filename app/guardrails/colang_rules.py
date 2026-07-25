@@ -97,12 +97,9 @@ define flow farewell
   bot express farewell
 """
 
+# The runtime main LLM is supplied by initialize_rails(), allowing the
+# application to use Nebius without keeping an obsolete OpenAI model here.
 YAML_CONTENT = """
-models:
-  - type: main
-    engine: openai
-    model: gpt-3.5-turbo
-
 instructions:
   - type: general
     content: |

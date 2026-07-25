@@ -2,11 +2,7 @@ import logfire
 
 from app.agents.state import AgentState
 from app.config import settings
-from app.gateway import get_langchain_llm
-
-
-# Portkey-backed LLM with routing, retries, and caching.
-llm = get_langchain_llm(feature="planner")
+from app.gateway import create_chat_completion
 
 
 def _history_from_messages(messages: list[dict]) -> str:
@@ -63,7 +59,11 @@ Output only "CONVERSATIONAL" or the refined search query.
 """
 
     with logfire.span("Planner decision"):
-        decision = llm.invoke(prompt).content.strip()
+        response = create_chat_completion(
+            feature="planner",
+            messages=[{"role": "user", "content": prompt}],
+        )
+        decision = (response.choices[0].message.content or "").strip()
 
         logfire.info(
             f"Planner decision completed. Intent Identified: {decision}",

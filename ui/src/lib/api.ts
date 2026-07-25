@@ -11,14 +11,8 @@ class ApiError extends Error {
   }
 }
 
-function headers(): Record<string, string> {
-  const h: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (config.apiKey) {
-    h["Authorization"] = `Bearer ${config.apiKey}`;
-  }
-  return h;
+function jsonHeaders(): Record<string, string> {
+  return { "Content-Type": "application/json" };
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -32,7 +26,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 export async function query(body: QueryRequest, signal?: AbortSignal): Promise<QueryResponse> {
   const res = await fetch(`${config.apiBaseUrl}/query`, {
     method: "POST",
-    headers: headers(),
+    headers: jsonHeaders(),
     body: JSON.stringify(body),
     signal,
   });
@@ -46,20 +40,28 @@ export type SSEEvent =
   | { event: "error"; data: { message: string } }
   | { event: "done"; data: { sources_used: string[] } };
 
+function parseSseBlock(block: string): SSEEvent | null {
+  let event = "";
+  const data: string[] = [];
+  for (const line of block.split(/\r?\n/)) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+  }
+  if (!event || data.length === 0) return null;
+  try {
+    return { event: event as SSEEvent["event"], data: JSON.parse(data.join("\n")) } as SSEEvent;
+  } catch {
+    return null;
+  }
+}
+
 export async function* queryStream(
   body: QueryRequest,
   signal?: AbortSignal,
 ): AsyncGenerator<SSEEvent> {
-  const h: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (config.apiKey) {
-    h["Authorization"] = `Bearer ${config.apiKey}`;
-  }
-
   const res = await fetch(`${config.apiBaseUrl}/query/stream`, {
     method: "POST",
-    headers: h,
+    headers: jsonHeaders(),
     body: JSON.stringify(body),
     signal,
   });
@@ -74,34 +76,25 @@ export async function* queryStream(
 
   const decoder = new TextDecoder();
   let buffer = "";
+  const consumeBlocks = function* (): Generator<SSEEvent> {
+    const normalized = buffer.replace(/\r\n/g, "\n");
+    const blocks = normalized.split("\n\n");
+    buffer = blocks.pop() ?? "";
+    for (const block of blocks) {
+      const event = parseSseBlock(block);
+      if (event) yield event;
+    }
+  };
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-
     buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    let currentEvent = "";
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-
-      if (trimmed.startsWith("event: ")) {
-        currentEvent = trimmed.slice(7).trim();
-      } else if (trimmed.startsWith("data: ")) {
-        const raw = trimmed.slice(6);
-        try {
-          const parsed = JSON.parse(raw);
-          yield { event: currentEvent as SSEEvent["event"], data: parsed } as SSEEvent;
-        } catch {
-          // skip malformed data
-        }
-        currentEvent = "";
-      }
-    }
+    yield* consumeBlocks();
   }
+
+  buffer += decoder.decode();
+  yield* consumeBlocks();
 }
 
 export async function healthCheck(signal?: AbortSignal): Promise<HealthResponse> {
@@ -110,29 +103,39 @@ export async function healthCheck(signal?: AbortSignal): Promise<HealthResponse>
 }
 
 export interface IngestResponse {
-  status: string;
+  job_id: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  progress: number;
   message: string;
 }
 
 export async function uploadDocument(
   file: File,
-  sourceType = "upload",
   signal?: AbortSignal,
 ): Promise<IngestResponse> {
   const form = new FormData();
   form.append("file", file);
-  form.append("source_type", sourceType);
-
-  const h: Record<string, string> = {};
-  if (config.apiKey) {
-    h["Authorization"] = `Bearer ${config.apiKey}`;
-  }
 
   const res = await fetch(`${config.apiBaseUrl}/ingest/document`, {
     method: "POST",
-    headers: h,
     body: form,
     signal,
   });
+  return handleResponse<IngestResponse>(res);
+}
+
+export async function deleteConversation(threadId: string, signal?: AbortSignal): Promise<void> {
+  const res = await fetch(`${config.apiBaseUrl}/conversations/${encodeURIComponent(threadId)}`, {
+    method: "DELETE",
+    signal,
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new ApiError(res.status, body || res.statusText);
+  }
+}
+
+export async function getIngestionStatus(jobId: string, signal?: AbortSignal): Promise<IngestResponse> {
+  const res = await fetch(`${config.apiBaseUrl}/ingest/document/${jobId}`, { signal });
   return handleResponse<IngestResponse>(res);
 }

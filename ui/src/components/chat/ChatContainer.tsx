@@ -5,8 +5,13 @@ import { useChat } from "../../hooks/useChat";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 
-export function ChatContainer() {
-  const { messages, isPending, error, sendMessage, clearHistory } = useChat();
+interface ChatContainerProps {
+  threadId: string;
+  onThreadChange: (threadId: string) => void;
+}
+
+export function ChatContainer({ threadId, onThreadChange }: ChatContainerProps) {
+  const { messages, isPending, error, sendMessage, clearHistory } = useChat({ threadId, onThreadChange });
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

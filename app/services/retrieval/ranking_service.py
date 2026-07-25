@@ -43,13 +43,16 @@ class _JinaReranker:
         reranked_docs = []
 
         for res in results[:top_n]:
-            doc_text = res.get("document")
+            # Jina's `document` field is normally {"text": "..."} when
+            # return_documents=True, rather than the text string itself.
+            document = res.get("document")
+            doc_text = document.get("text") if isinstance(document, dict) else document
             if doc_text is None:
-                # Fallback to original index if document text is missing
+                # Fallback to original index if document text is missing.
                 index = res.get("index")
-                if index is not None and  0<= index < len(documents):
+                if index is not None and 0 <= index < len(documents):
                     doc_text = documents[index]
-            if doc_text is not None:
+            if isinstance(doc_text, str):
                 reranked_docs.append(doc_text)
 
         return reranked_docs

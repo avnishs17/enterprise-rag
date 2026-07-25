@@ -16,7 +16,7 @@ from qdrant_client import QdrantClient
 from redis import Redis
 
 from app.config import settings
-from app.gateway.client import portkey_client
+from app.gateway.client import create_chat_completion, groq_client, nebius_client
 
 
 class ConnectionResult:
@@ -111,49 +111,52 @@ def _check_qdrant() -> ConnectionResult:
 
 
 def _check_portkey_gateway() -> ConnectionResult:
-    """Checks Portkey gateway connectivity."""
+    """Checks the active primary LLM route (Portkey or direct Nebius)."""
     try:
-        response = portkey_client.chat.completions.create(
-            model=f"@{settings.PORTKEY_PRIMARY_SLUG}/gpt-5-mini",
-            messages=[{"role": "user", "content": "Say hello in one word."}],
-            max_completion_tokens=100,
-            timeout=10,
-        )
+        if settings.USE_PORTKEY:
+            response = create_chat_completion(
+                feature="health",
+                messages=[{"role": "user", "content": "Say hello in one word."}],
+                max_completion_tokens=100,
+                timeout=10,
+            )
+            route = "Portkey"
+        else:
+            response = nebius_client.chat.completions.create(
+                model=settings.NEBIUS_MODEL,
+                messages=[{"role": "user", "content": "Say hello in one word."}],
+                max_completion_tokens=100,
+                timeout=10,
+            )
+            route = "Nebius direct"
 
         if response.choices and response.choices[0].message.content is not None:
-            return ConnectionResult(
-                "llm_gateway",
-                True,
-                "Portkey gateway reachable",
-            )
+            return ConnectionResult("llm_gateway", True, f"{route} primary route reachable")
 
         raise RuntimeError("Empty response")
 
     except Exception as e:
-        logfire.warning(f"Portkey gateway health check failed: {e}")
+        logfire.warning(f"Primary LLM health check failed: {e}")
         return ConnectionResult("llm_gateway", False, str(e))
 
+
 def _check_portkey_fallback() -> ConnectionResult:
-    """Checks Portkey fallback provider connectivity."""
+    """Checks the direct Groq fallback used when Portkey is disabled."""
     try:
-        response = portkey_client.chat.completions.create(
-            model=f"@{settings.PORTKEY_FALLBACK_SLUG}/{settings.FALLBACK_LLM_MODEL}",
+        response = groq_client.chat.completions.create(
+            model=settings.FALLBACK_LLM_MODEL,
             messages=[{"role": "user", "content": "Say hello in one word."}],
             max_completion_tokens=100,
             timeout=10,
         )
 
         if response.choices and response.choices[0].message.content is not None:
-            return ConnectionResult(
-                "llm_fallback",
-                True,
-                "Portkey fallback reachable",
-            )
+            return ConnectionResult("llm_fallback", True, "Groq fallback reachable")
 
         raise RuntimeError("Empty response")
 
     except Exception as e:
-        logfire.warning(f"Portkey fallback health check failed: {e}")
+        logfire.warning(f"Groq fallback health check failed: {e}")
         return ConnectionResult("llm_fallback", False, str(e))
 
 def _check_jina_embeddings() -> ConnectionResult:

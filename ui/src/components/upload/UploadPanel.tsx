@@ -2,10 +2,11 @@
 
 import { type FormEvent, useRef, useState } from "react";
 import { Upload, FileText, CheckCircle, XCircle, Loader2 } from "lucide-react";
-import { uploadDocument } from "../../lib/api";
+import { getIngestionStatus, uploadDocument } from "../../lib/api";
 import { cn } from "../../lib/utils";
 
-type UploadState = "idle" | "uploading" | "success" | "error";
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+type UploadState = "idle" | "uploading" | "processing" | "success" | "error";
 
 export function UploadPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -15,11 +16,34 @@ export function UploadPanel() {
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
-    if (f) {
-      setFile(f);
-      setState("idle");
-      setMessage("");
+    if (!f) return;
+    if (f.size > MAX_UPLOAD_BYTES) {
+      setFile(null);
+      setState("error");
+      setMessage("File exceeds the 25 MB upload limit.");
+      return;
     }
+    setFile(f);
+    setState("idle");
+    setMessage("");
+  }
+
+  async function waitForIngestion(jobId: string) {
+    for (let attempts = 0; attempts < 120; attempts += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+      const job = await getIngestionStatus(jobId);
+      setMessage(`${job.message} (${job.progress}%)`);
+      if (job.status === "completed") {
+        setState("success");
+        return;
+      }
+      if (job.status === "failed") {
+        setState("error");
+        return;
+      }
+    }
+    setState("error");
+    setMessage("Ingestion is taking longer than expected. Please check back later.");
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -30,23 +54,19 @@ export function UploadPanel() {
     setMessage("");
 
     try {
-      const res = await uploadDocument(file);
-      if (res.status === "success") {
-        setState("success");
-        setMessage(res.message);
-        setFile(null);
-        if (inputRef.current) inputRef.current.value = "";
-      } else {
-        setState("error");
-        setMessage(res.message);
-      }
-    } catch (err) {
+      const job = await uploadDocument(file);
+      setState("processing");
+      setMessage(`${job.message} (${job.progress}%)`);
+      setFile(null);
+      if (inputRef.current) inputRef.current.value = "";
+      await waitForIngestion(job.job_id);
+    } catch {
       setState("error");
-      setMessage(err instanceof Error ? err.message : "Upload failed");
+      setMessage("Upload failed. Please verify the file and try again.");
     }
   }
 
-  const isBusy = state === "uploading";
+  const isBusy = state === "uploading" || state === "processing";
 
   return (
     <div className="border-t border-zinc-800 p-4">
@@ -59,24 +79,12 @@ export function UploadPanel() {
           htmlFor="file-upload"
           className={cn(
             "flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 transition-colors",
-            file
-              ? "border-blue-500/50 bg-blue-500/5"
-              : "border-zinc-700 hover:border-zinc-500",
+            file ? "border-blue-500/50 bg-blue-500/5" : "border-zinc-700 hover:border-zinc-500",
           )}
         >
-          {file ? (
-            <FileText className="h-6 w-6 text-blue-400" />
-          ) : (
-            <Upload className="h-6 w-6 text-zinc-500" />
-          )}
-          <span className="text-xs text-zinc-400">
-            {file ? file.name : "Click to select a file"}
-          </span>
-          {file && (
-            <span className="text-[10px] text-zinc-500">
-              {(file.size / 1024).toFixed(1)} KB
-            </span>
-          )}
+          {file ? <FileText className="h-6 w-6 text-blue-400" /> : <Upload className="h-6 w-6 text-zinc-500" />}
+          <span className="text-xs text-zinc-400">{file ? file.name : "Click to select a file"}</span>
+          {file && <span className="text-[10px] text-zinc-500">{(file.size / 1024).toFixed(1)} KB</span>}
           <input
             ref={inputRef}
             id="file-upload"
@@ -97,30 +105,12 @@ export function UploadPanel() {
             "disabled:cursor-not-allowed disabled:opacity-50",
           )}
         >
-          {isBusy ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Ingesting...
-            </>
-          ) : (
-            "Ingest into Knowledge Base"
-          )}
+          {isBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />{state === "uploading" ? "Uploading..." : "Ingesting..."}</> : "Ingest into Knowledge Base"}
         </button>
       </form>
 
-      {state === "success" && (
-        <div className="mt-2 flex items-center gap-1.5 rounded bg-green-900/30 px-3 py-2">
-          <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-400" />
-          <span className="text-xs text-green-300">{message}</span>
-        </div>
-      )}
-
-      {state === "error" && (
-        <div className="mt-2 flex items-center gap-1.5 rounded bg-red-900/30 px-3 py-2">
-          <XCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
-          <span className="text-xs text-red-300">{message}</span>
-        </div>
-      )}
+      {state === "success" && <div className="mt-2 flex items-center gap-1.5 rounded bg-green-900/30 px-3 py-2"><CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-400" /><span className="text-xs text-green-300">{message}</span></div>}
+      {state === "error" && <div className="mt-2 flex items-center gap-1.5 rounded bg-red-900/30 px-3 py-2"><XCircle className="h-3.5 w-3.5 shrink-0 text-red-400" /><span className="text-xs text-red-300">{message}</span></div>}
     </div>
   );
 }

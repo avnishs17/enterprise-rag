@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { queryStream } from "../lib/api";
+import { deleteConversation, queryStream } from "../lib/api";
 import type { ChatMessage } from "../lib/types";
 
 function generateId(): string {
@@ -12,7 +12,8 @@ function generateId(): string {
 }
 
 interface UseChatOptions {
-  threadId?: string;
+  threadId: string;
+  onThreadChange: (threadId: string) => void;
 }
 
 interface UseChatReturn {
@@ -20,18 +21,22 @@ interface UseChatReturn {
   isPending: boolean;
   error: string | null;
   sendMessage: (content: string) => Promise<void>;
-  clearHistory: () => void;
+  clearHistory: () => Promise<void>;
 }
 
-export function useChat({ threadId: externalThreadId }: UseChatOptions = {}): UseChatReturn {
+export function useChat({ threadId: externalThreadId, onThreadChange }: UseChatOptions): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const threadIdRef = useRef<string>(externalThreadId || generateId());
+  const threadIdRef = useRef<string>(externalThreadId);
   const abortRef = useRef<AbortController | null>(null);
   const pendingRef = useRef(false);
   const tokenQueueRef = useRef<string[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    threadIdRef.current = externalThreadId;
+  }, [externalThreadId]);
 
   useEffect(() => {
     return () => {
@@ -189,14 +194,23 @@ export function useChat({ threadId: externalThreadId }: UseChatOptions = {}): Us
     }
   }, []);
 
-  const clearHistory = useCallback(() => {
+  const clearHistory = useCallback(async () => {
+    const previousThreadId = threadIdRef.current;
     abortRef.current?.abort();
-    threadIdRef.current = generateId();
+    const nextThreadId = generateId();
+    threadIdRef.current = nextThreadId;
+    onThreadChange(nextThreadId);
     setMessages([]);
     setError(null);
     setIsPending(false);
     pendingRef.current = false;
-  }, []);
+
+    try {
+      await deleteConversation(previousThreadId);
+    } catch {
+      setError("The local chat was cleared, but its server history could not be deleted.");
+    }
+  }, [onThreadChange]);
 
   return { messages, isPending, error, sendMessage, clearHistory };
 }

@@ -18,6 +18,8 @@ dist/
 # Environment variables
 .env
 .env.*
+!.env.example
+!ui/.env.example
 
 # Testing and tooling
 .pytest_cache/
@@ -34,8 +36,10 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Logs
+# Logs and generated evaluation reports
 *.log
+evals/latest_report.json
+evals/guardrail_ab_report.json
 
 
 # Node / Next.js

@@ -38,6 +38,20 @@ def save_exchange(messages: list[dict], thread_id: str) -> None:
     reraise=False,
     before_sleep=before_sleep_log(logfire, "warning"),
 )
+def delete_memories(thread_id: str) -> None:
+    """Remove all Mem0 memories scoped to one thread/user ID."""
+    client = _get_client()
+    if client is None:
+        return
+    client.delete_all(user_id=thread_id)
+
+
+@retry(
+    stop=stop_after_attempt(2),
+    wait=wait_exponential(multiplier=1, min=1, max=3),
+    reraise=False,
+    before_sleep=before_sleep_log(logfire, "warning"),
+)
 def get_relevant_memories(query: str, thread_id: str, limit: int = 5) -> str:
     client = _get_client()
     if client is None:

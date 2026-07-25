@@ -4,6 +4,7 @@ import { cn } from "../../lib/utils";
 import type { ChatMessage as ChatMessageType } from "../../lib/types";
 import { ThoughtProcess } from "./ThoughtProcess";
 import { SourcesPanel } from "./SourcesPanel";
+import { MarkdownContent } from "./MarkdownContent";
 
 const SOURCE_LABELS: Record<string, { label: string; color: string }> = {
   memory: { label: "Memory", color: "bg-violet-600" },
@@ -33,11 +34,15 @@ export function ChatMessage({ message }: ChatMessageProps) {
             : "bg-zinc-800 text-zinc-100",
         )}
       >
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">
-          {message.content || (
-            <span className="opacity-50">Generating response...</span>
-          )}
-        </p>
+        {message.content ? (
+          isUser ? (
+            <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+          ) : (
+            <MarkdownContent content={message.content} />
+          )
+        ) : (
+          <span className="text-sm opacity-50">Generating response...</span>
+        )}
 
         {!isUser && message.sourcesUsed && message.sourcesUsed.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-1">
