@@ -38,12 +38,12 @@ RUN apt-get update \
     && useradd --create-home --shell /usr/sbin/nologin appuser
 
 WORKDIR /app
-COPY --from=builder /app/.venv /app/.venv
-COPY app ./app
-COPY pyproject.toml README.md ./
+COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
+COPY --chown=appuser:appuser app ./app
+COPY --chown=appuser:appuser pyproject.toml README.md ./
 
 RUN mkdir -p processed_data \
-    && chown -R appuser:appuser /app
+    && chown appuser:appuser processed_data
 
 USER appuser
 

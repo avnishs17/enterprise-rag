@@ -50,9 +50,6 @@ class Settings(BaseSettings):
     # Maximum idle/read time for planner and generation provider calls. A
     # streamed response may run longer while tokens continue arriving.
     LLM_REQUEST_TIMEOUT_SECONDS: float = 45.0
-    # Retained only for older evaluation configuration; runtime RAG does not
-    # call OpenAI directly.
-    OPENAI_API_KEY: str = ""
     JUDGE_GROQ_API_KEY: str
 
     # --- LLM ROUTING ---

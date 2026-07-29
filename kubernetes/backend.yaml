@@ -50,6 +50,7 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
+            runAsUser: 1000
             runAsNonRoot: true
             seccompProfile:
               type: RuntimeDefault
@@ -57,6 +58,9 @@ spec:
             httpGet:
               path: /health
               port: http
+              httpHeaders:
+                - name: Host
+                  value: rag-backend
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 30
@@ -64,6 +68,9 @@ spec:
             httpGet:
               path: /health
               port: http
+              httpHeaders:
+                - name: Host
+                  value: rag-backend
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 3
@@ -71,6 +78,9 @@ spec:
             httpGet:
               path: /ready
               port: http
+              httpHeaders:
+                - name: Host
+                  value: rag-backend
             periodSeconds: 20
             timeoutSeconds: 10
             failureThreshold: 3
