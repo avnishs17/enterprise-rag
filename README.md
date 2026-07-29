@@ -95,7 +95,7 @@ Details and troubleshooting: [docs/evaluations.md](docs/evaluations.md).
 
 ## Current evaluation baseline
 
-Latest validated baseline:
+Latest validated baseline from the Dockerized local stack:
 
 | Metric | Score |
 |---|---:|
@@ -103,14 +103,14 @@ Latest validated baseline:
 | Expected source recall | 1.000 |
 | Citation coverage | 1.000 |
 | Citation validity | 1.000 |
-| Required term recall | 0.958 |
+| Required term recall | 1.000 |
 | Guardrail precision/recall/accuracy | 1.000 / 1.000 / 1.000 |
 | Conversation pass rate | 1.000 |
-| RAGAS faithfulness | 0.988 |
-| RAGAS answer relevancy | 0.897 |
-| RAGAS context precision | 0.939 |
-| RAGAS context recall | 1.000 |
-| RAGAS answer correctness | 0.728 |
+| RAGAS faithfulness | 0.969 |
+| RAGAS answer relevancy | 0.890 |
+| RAGAS context precision | 0.935 |
+| RAGAS context recall | 0.938 |
+| RAGAS answer correctness | 0.712 |
 
 Interpretation: retrieval, citations, guardrails, and conversation memory are passing strongly. The main quality-improvement target is answer correctness/detail alignment while preserving high faithfulness.
 

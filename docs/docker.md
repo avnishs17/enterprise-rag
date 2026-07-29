@@ -81,6 +81,14 @@ uv run python -m evals.run \
   --ragas-score-timeout 180
 ```
 
+Latest Docker-local validation passed:
+
+```text
+Deterministic: retrieval/source/citations/guardrails/conversation = 1.0
+RAGAS: faithfulness 0.969, relevancy 0.890, context precision 0.935,
+       context recall 0.938, answer correctness 0.712
+```
+
 ## Useful commands
 
 ```bash

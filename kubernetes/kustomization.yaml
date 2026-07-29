@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - backend.yaml
+  - frontend.yaml
+  - ingress.yaml
+images:
+  - name: enterprise-agentic-rag-backend
+    newName: enterprise-agentic-rag-backend
+    newTag: local
+  - name: enterprise-agentic-rag-frontend
+    newName: enterprise-agentic-rag-frontend
+    newTag: local

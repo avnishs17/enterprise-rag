@@ -98,7 +98,7 @@ Reports are written to `evals/latest_report.json` (ignored by Git). RAGAS uses t
 
 ## Current baseline
 
-Latest validated baseline using deterministic evals plus RAGAS from the saved report with Nebius as the judge:
+Latest validated baseline from the Dockerized local stack using deterministic evals plus RAGAS from the saved report with Nebius as the judge:
 
 ```bash
 uv run python -m evals.run
@@ -117,20 +117,20 @@ Deterministic summary:
 | Expected source recall | 1.000 |
 | Citation coverage | 1.000 |
 | Citation validity | 1.000 |
-| Required term recall | 0.958 |
+| Required term recall | 1.000 |
 | Guardrail precision/recall/accuracy | 1.000 / 1.000 / 1.000 |
 | Conversation pass rate | 1.000 |
-| Average live latency | 11.76s |
+| Average live latency | 14.24s |
 
 RAGAS summary:
 
 | Metric | Score |
 |---|---:|
-| Faithfulness | 0.988 |
-| Answer relevancy | 0.897 |
-| Context precision | 0.939 |
-| Context recall | 1.000 |
-| Answer correctness | 0.728 |
+| Faithfulness | 0.969 |
+| Answer relevancy | 0.890 |
+| Context precision | 0.935 |
+| Context recall | 0.938 |
+| Answer correctness | 0.712 |
 
 Interpretation: retrieval, citations, guardrails, and conversation memory are passing strongly. The main quality-improvement target is answer correctness/detail alignment, while keeping faithfulness high.
 
