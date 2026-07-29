@@ -23,21 +23,26 @@ class RagasConfig:
     embedding_model: str = "jina-embeddings-v3"
     delay_seconds: float = 1.0
     score_timeout_seconds: float = 180.0
+    sample_limit: int | None = None
+    metric_names: tuple[str, ...] | None = None
+    max_context_chars: int = MAX_CONTEXT_CHARS
 
 
-def _inputs(result: dict[str, Any]) -> dict[str, Any]:
+def _inputs(result: dict[str, Any], max_context_chars: int = MAX_CONTEXT_CHARS) -> dict[str, Any]:
     """Map the current evaluator report schema to RAGAS's single-turn schema."""
     return {
         "user_input": result["question"],
         "response": result["answer"],
         "reference": result["reference"],
-        "retrieved_contexts": [source[:MAX_CONTEXT_CHARS] for source in result["sources"][:MAX_CONTEXTS]],
+        "retrieved_contexts": [source[:max_context_chars] for source in result["sources"][:MAX_CONTEXTS]],
     }
 
 
-def _metric_inputs(metric_name: str, result: dict[str, Any]) -> dict[str, Any]:
+def _metric_inputs(
+    metric_name: str, result: dict[str, Any], max_context_chars: int = MAX_CONTEXT_CHARS
+) -> dict[str, Any]:
     """Return only the fields accepted by each RAGAS metric version."""
-    inputs = _inputs(result)
+    inputs = _inputs(result, max_context_chars)
     required = {
         "faithfulness": ("user_input", "response", "retrieved_contexts"),
         "answer_relevancy": ("user_input", "response"),
@@ -109,6 +114,13 @@ async def run_ragas_metrics(results: list[dict[str, Any]], config: RagasConfig) 
         raise ValueError("No successful, grounded RAG responses are available for RAGAS scoring.")
 
     metrics = _build_metrics(config)
+    if config.metric_names:
+        unknown = set(config.metric_names) - set(metrics)
+        if unknown:
+            raise ValueError(f"Unknown RAGAS metric(s): {', '.join(sorted(unknown))}")
+        metrics = {name: metrics[name] for name in config.metric_names}
+    if config.sample_limit:
+        usable = usable[:config.sample_limit]
     report: dict[str, Any] = {}
     for metric_index, (metric_name, metric) in enumerate(metrics.items(), start=1):
         rows = []
@@ -117,7 +129,7 @@ async def run_ragas_metrics(results: list[dict[str, Any]], config: RagasConfig) 
             print(f"  scoring {index + 1}/{len(usable)}: {result['id']}", flush=True)
             score = await _score_with_retry(
                 metric,
-                _metric_inputs(metric_name, result),
+                _metric_inputs(metric_name, result, config.max_context_chars),
                 timeout_seconds=config.score_timeout_seconds,
             )
             rows.append({"id": result["id"], "score": round(score, 3)})

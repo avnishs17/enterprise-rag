@@ -1,0 +1,35 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    image: enterprise-agentic-rag-backend:local
+    env_file:
+      - .env
+    environment:
+      # Compose service DNS name must be trusted because the frontend proxy calls
+      # http://backend:8000 from inside the Docker network.
+      TRUSTED_HOSTS: localhost,127.0.0.1,backend
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      # Useful for local eval loops; keep production limits stricter.
+      RATE_LIMIT_PER_MINUTE: ${DOCKER_RATE_LIMIT_PER_MINUTE:-100}
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    image: enterprise-agentic-rag-frontend:local
+    environment:
+      RAG_API_URL: http://backend:8000
+      RAG_API_KEY: ${RAG_API_KEY:-}
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

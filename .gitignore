@@ -27,6 +27,7 @@ dist/
 .ruff_cache/
 .coverage
 htmlcov/
+.deepeval/
 
 # IDEs
 .vscode/

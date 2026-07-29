@@ -1,0 +1,29 @@
+# Git / local tooling
+.git
+.gitignore
+.dockerignore
+.pytest_cache
+.ruff_cache
+.deepeval
+.venv
+venv
+__pycache__
+*.py[cod]
+*.log
+
+# Secrets and local env files
+.env
+.env.*
+!.env.example
+
+# Runtime/generated data
+processed_data
+DATA
+enterprise_agentic_rag.egg-info
+
+# Frontend is built from ui/ as its own Docker context
+ui
+
+# Tests/evals are not needed in the backend runtime image
+tests
+evals

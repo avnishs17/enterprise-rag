@@ -1,0 +1,12 @@
+node_modules
+.next
+coverage
+.vitest
+.env
+.env.*
+!.env.example
+npm-debug.log*
+.DS_Store
+Dockerfile
+.dockerignore
+tsconfig.tsbuildinfo

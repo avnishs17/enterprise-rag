@@ -36,15 +36,45 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Run only RAGAS using an existing eval report, avoiding another live API pass.",
     )
-    parser.add_argument("--judge-api-key", default=os.getenv("EVAL_JUDGE_API_KEY") or os.getenv("JUDGE_GROQ_API_KEY"))
-    parser.add_argument("--judge-base-url", default=os.getenv("EVAL_JUDGE_BASE_URL") or os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1"))
-    parser.add_argument("--judge-model", default=os.getenv("EVAL_JUDGE_MODEL", "llama-3.3-70b-versatile"))
+    parser.add_argument(
+        "--judge-provider",
+        choices=("groq", "nebius", "custom"),
+        default=os.getenv("EVAL_JUDGE_PROVIDER", "groq"),
+        help="RAGAS judge provider. Use 'nebius' to spend Nebius credits instead of Groq.",
+    )
+    parser.add_argument("--judge-api-key", default=os.getenv("EVAL_JUDGE_API_KEY"))
+    parser.add_argument("--judge-base-url", default=os.getenv("EVAL_JUDGE_BASE_URL"))
+    parser.add_argument("--judge-model", default=os.getenv("EVAL_JUDGE_MODEL"))
     parser.add_argument("--embedding-api-key", default=os.getenv("EVAL_EMBEDDING_API_KEY") or os.getenv("JINA_API_KEY"))
     parser.add_argument("--embedding-base-url", default=os.getenv("EVAL_EMBEDDING_BASE_URL", "https://api.jina.ai/v1"))
     parser.add_argument("--embedding-model", default=os.getenv("EVAL_EMBEDDING_MODEL") or os.getenv("JINA_MODEL", "jina-embeddings-v3"))
     parser.add_argument("--judge-delay", type=float, default=1.0, help="Seconds between judge samples (default: 1).")
     parser.add_argument("--ragas-score-timeout", type=float, default=180.0, help="Seconds before retrying one RAGAS metric/sample score.")
+    parser.add_argument("--ragas-limit", type=int, default=None, help="Only score the first N successful RAG samples.")
+    parser.add_argument(
+        "--ragas-metrics",
+        default=None,
+        help="Comma-separated subset, e.g. faithfulness,answer_relevancy.",
+    )
+    parser.add_argument("--ragas-context-chars", type=int, default=4000, help="Max characters per retrieved context sent to RAGAS.")
     return parser.parse_args()
+
+
+def _resolve_judge_config(args: argparse.Namespace) -> tuple[str | None, str, str]:
+    """Resolve the RAGAS judge from explicit CLI args or provider defaults."""
+    if args.judge_provider == "nebius":
+        return (
+            args.judge_api_key or os.getenv("NEBIUS_API_KEY"),
+            args.judge_base_url or os.getenv("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1/"),
+            args.judge_model or os.getenv("NEBIUS_MODEL", "google/gemma-3-27b-it"),
+        )
+    if args.judge_provider == "groq":
+        return (
+            args.judge_api_key or os.getenv("JUDGE_GROQ_API_KEY") or os.getenv("GROQ_API_KEY"),
+            args.judge_base_url or os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1"),
+            args.judge_model or "llama-3.3-70b-versatile",
+        )
+    return args.judge_api_key, args.judge_base_url or "", args.judge_model or ""
 
 
 def main() -> int:
@@ -76,23 +106,29 @@ def main() -> int:
         }
 
     if args.ragas:
-        if not args.judge_api_key:
-            raise ValueError("--ragas requires EVAL_JUDGE_API_KEY or JUDGE_GROQ_API_KEY.")
+        judge_api_key, judge_base_url, judge_model = _resolve_judge_config(args)
+        if not judge_api_key or not judge_base_url or not judge_model:
+            raise ValueError("--ragas requires a judge API key, base URL, and model. Use --judge-provider nebius/groq or explicit --judge-* flags.")
         if not args.embedding_api_key:
             raise ValueError("--ragas requires EVAL_EMBEDDING_API_KEY or JINA_API_KEY.")
-        print("Running sequential RAGAS judge metrics...")
+        print(f"Running sequential RAGAS judge metrics using {args.judge_provider}: {judge_model}...")
         report["ragas"] = asyncio.run(
             run_ragas_metrics(
                 rag,
                 RagasConfig(
-                    api_key=args.judge_api_key,
-                    base_url=args.judge_base_url,
-                    model=args.judge_model,
+                    api_key=judge_api_key,
+                    base_url=judge_base_url,
+                    model=judge_model,
                     embedding_api_key=args.embedding_api_key,
                     embedding_base_url=args.embedding_base_url,
                     embedding_model=args.embedding_model,
                     delay_seconds=args.judge_delay,
                     score_timeout_seconds=args.ragas_score_timeout,
+                    sample_limit=args.ragas_limit,
+                    metric_names=tuple(m.strip() for m in args.ragas_metrics.split(",") if m.strip())
+                    if args.ragas_metrics
+                    else None,
+                    max_context_chars=args.ragas_context_chars,
                 ),
             )
         )
