@@ -196,9 +196,9 @@ before bootstrap. The exact command is documented in `docs/terraform.md`.
 The registration command does not create an AKS, ACR, Key Vault, or application
 resource; it only enables the subscription providers Terraform will use.
 
-## Current validation result
+## Validation result
 
-The final validated path is:
+Before teardown, the final validated path was:
 
 ```text
 GitHub push -> CI -> ACR CPU image builds -> AKS manifest render/apply
@@ -208,3 +208,6 @@ GitHub push -> CI -> ACR CPU image builds -> AKS manifest render/apply
 The deployment remains a disposable test environment. Authentication,
 authorization, tenant isolation, durable upload workers, HTTPS, autoscaling,
 monitoring, and backup/restore still require production hardening.
+
+The Azure test resources have since been destroyed. Re-run the Terraform and
+GitHub Actions setup guides before attempting another cloud deployment.

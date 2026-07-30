@@ -101,8 +101,9 @@ use the same `app_hostname` value in Terraform and the rendered overlay, then
 map it locally after the Ingress receives an IP:
 
 ```bash
-kubectl get ingress -n enterprise-rag -o wide
-sudo sh -c 'echo "<EXTERNAL-IP> enterprise-agentic-rag.test" >> /etc/hosts'
+INGRESS_IP="$(kubectl -n enterprise-rag get ingress rag-frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+printf '%s enterprise-agentic-rag.test\n' "$INGRESS_IP"
+sudo sh -c "printf '%s enterprise-agentic-rag.test\\n' '$INGRESS_IP' >> /etc/hosts"
 ```
 
 Open `http://enterprise-agentic-rag.test`. This mapping exists only on your
@@ -140,4 +141,10 @@ Remove the local cluster with:
 
 ```bash
 k3d cluster delete rag-local
+```
+
+Remove the temporary hosts entry after the AKS test is destroyed:
+
+```bash
+sudo sed -i '/[[:space:]]enterprise-agentic-rag[.]test[[:space:]]*$/d' /etc/hosts
 ```

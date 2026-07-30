@@ -17,7 +17,7 @@ dedicated guides.
 
 ## Runtime layout
 
-Create Kubernetes manifests for two runtime workloads:
+The Kubernetes runtime consists of two workloads:
 
 ```text
 rag-backend Deployment + Service

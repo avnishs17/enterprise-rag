@@ -216,4 +216,23 @@ terraform -chdir=infra/terraform/bootstrap destroy
 This removes the Terraform-managed Azure resource groups, AKS, ACR, Key Vault,
 managed identities, role assignments, and remote state storage. It does not
 remove GitHub environment secrets/variables; delete those separately from the
-repository settings if they are no longer needed.
+repository settings if they are no longer needed. Azure-created
+`NetworkWatcherRG` is outside Terraform; inspect and remove it only for a
+disposable subscription using the [Network Watcher cleanup](terraform.md#clean-up-azure-created-network-watcher)
+commands.
+
+Optional local and GitHub cleanup:
+
+```bash
+# Remove the temporary AKS hostname mapping from this laptop.
+sudo sed -i '/[[:space:]]enterprise-agentic-rag[.]test[[:space:]]*$/d' /etc/hosts
+
+# Delete the production environment and its environment-scoped secrets/variables.
+# Run this only if the GitHub environment will not be reused.
+REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+gh api --method DELETE "repos/$REPO/environments/production"
+```
+
+Deleting the GitHub environment does not remove repository-level secrets or
+variables. Review them separately with `gh secret list` and `gh variable list`
+before deleting any remaining credentials.

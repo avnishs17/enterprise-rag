@@ -174,3 +174,25 @@ terraform -chdir=infra/terraform/bootstrap destroy
 Review each destroy plan carefully. This removes the Terraform-managed Azure
 resource groups, AKS, ACR, Key Vault, identities, role assignments, and state
 storage. It does not delete GitHub environment secrets or variables.
+
+## Clean up Azure-created Network Watcher
+
+Azure may create `NetworkWatcherRG` outside Terraform when network features are
+enabled. Terraform destroy does not remove it. Inspect the group first:
+
+```bash
+NETWORK_WATCHER_RG="${NETWORK_WATCHER_RG:-NetworkWatcherRG}"
+az resource list --resource-group "$NETWORK_WATCHER_RG" \
+  --query '[].{name:name,type:type,location:location}' -o table
+```
+
+Only run the deletion when this is a disposable subscription and the group
+contains no resources needed by another deployment:
+
+```bash
+az group delete --name "$NETWORK_WATCHER_RG" --yes --no-wait
+az group wait --deleted --name "$NETWORK_WATCHER_RG" --interval 15 --timeout 600
+```
+
+This is a subscription-level cleanup step, not a Terraform resource. Deleting
+a shared Network Watcher can affect diagnostics for unrelated Azure workloads.
