@@ -14,36 +14,146 @@ A streaming enterprise RAG assistant for approved Kubernetes, Intel hardware, an
 
 ## Architecture
 
-The editable source is [enterprise-rag-architecture.tldraw](architecture/enterprise-rag-architecture.tldraw).
+### Document Ingestion
 
-### Document Indexing
+```mermaid
+%%{init: {"theme": "base", "htmlLabels": false, "flowchart": {"wrappingWidth": 130, "nodeSpacing": 60, "rankSpacing": 70}, "themeVariables": {"background": "#f8fafc", "mainBkg": "#ffffff", "clusterBkg": "#f8fafc", "clusterBorder": "#94a3b8", "primaryColor": "#dbeafe", "primaryBorderColor": "#2563eb", "primaryTextColor": "#0f172a", "lineColor": "#334155", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
+flowchart TB
+    Upload["`Document
+    upload`"] --> Validate["`File
+    validation`"]
+    Validate --> Job["`Ingestion
+    job`"]
+    Job --> Extract["`Text
+    extraction`"]
+    Extract --> Passages["`Passage
+    splitting`"]
+    Passages --> Embed["`Embedding
+    model`"]
+    Embed --> Index["`Qdrant
+    index`"]
 
-[![Document indexing flow](architecture/images/01-document-indexing.png)](architecture/images/01-document-indexing.png?raw=true)
+    classDef app fill:#dbeafe,stroke:#2563eb,color:#0f172a;
+    classDef data fill:#dcfce7,stroke:#059669,color:#0f172a;
+    classDef ai fill:#fee2e2,stroke:#dc2626,color:#0f172a;
+
+    class Upload,Validate,Job,Extract,Passages app;
+    class Embed ai;
+    class Index data;
+```
 
 ### Query Answer Flow
 
-[![Query answer flow](architecture/images/02-query-answer-flow.png)](architecture/images/02-query-answer-flow.png?raw=true)
+```mermaid
+%%{init: {"theme": "base", "htmlLabels": false, "flowchart": {"wrappingWidth": 130, "nodeSpacing": 60, "rankSpacing": 70}, "themeVariables": {"background": "#f8fafc", "mainBkg": "#ffffff", "clusterBkg": "#f8fafc", "clusterBorder": "#94a3b8", "primaryColor": "#dbeafe", "primaryBorderColor": "#2563eb", "primaryTextColor": "#0f172a", "lineColor": "#334155", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
+flowchart TB
+    UI["`User
+    question`"] --> Proxy["`Next.js
+    proxy`"]
+    Proxy --> API["`FastAPI
+    stream`"]
+    API --> Guard["`Safety
+    check`"]
+    Guard --> Plan["`Request
+    router`"]
+
+    Plan -->|chat| Memory["`Redis
+    Mem0`"]
+    Plan -->|knowledge| Search["`Qdrant
+    Jina`"]
+    Memory --> LLM["`Nebius
+    Groq`"]
+    Search --> LLM
+    LLM --> Response["`Answer
+    sources`"]
+
+    classDef app fill:#dbeafe,stroke:#2563eb,color:#0f172a;
+    classDef data fill:#dcfce7,stroke:#059669,color:#0f172a;
+    classDef ai fill:#fee2e2,stroke:#dc2626,color:#0f172a;
+
+    class UI,Proxy,API,Response app;
+    class Memory,Search data;
+    class Guard,Plan,LLM ai;
+```
 
 ### Azure Deployment
 
-[![Azure deployment flow](architecture/images/03-azure-deployment.png)](architecture/images/03-azure-deployment.png?raw=true)
+```mermaid
+%%{init: {"theme": "base", "htmlLabels": false, "flowchart": {"wrappingWidth": 130, "nodeSpacing": 60, "rankSpacing": 70}, "themeVariables": {"background": "#f8fafc", "mainBkg": "#ffffff", "clusterBkg": "#f8fafc", "clusterBorder": "#94a3b8", "primaryColor": "#dbeafe", "primaryBorderColor": "#2563eb", "primaryTextColor": "#0f172a", "lineColor": "#334155", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
+flowchart TB
+    Repo["`Code
+    push`"] --> Actions["`CI CD
+    workflow`"]
+    Actions --> Images["`Image
+    build`"]
+    Images --> ACR["`Azure
+    ACR`"]
+    ACR --> AKS["`AKS
+    pods`"]
+    AKS --> Ingress["`Ingress
+    URL`"]
+    Ingress --> Verify["`Smoke
+    test`"]
+
+    Terraform["`Terraform
+    platform`"] -.-> AKS
+    OIDC["`GitHub
+    OIDC`"] -.-> Actions
+    Vault["`Key
+    Vault`"] -.-> AKS
+
+    classDef app fill:#dbeafe,stroke:#2563eb,color:#0f172a;
+    classDef data fill:#dcfce7,stroke:#059669,color:#0f172a;
+    classDef deploy fill:#ffedd5,stroke:#ea580c,color:#0f172a;
+
+    class Repo,Ingress,Verify app;
+    class Vault data;
+    class Actions,Images,ACR,AKS,Terraform,OIDC deploy;
+```
 
 ### Evaluation
 
-[![Evaluation flow](architecture/images/04-evaluation.png)](architecture/images/04-evaluation.png?raw=true)
+```mermaid
+%%{init: {"theme": "base", "htmlLabels": false, "flowchart": {"wrappingWidth": 130, "nodeSpacing": 60, "rankSpacing": 70}, "themeVariables": {"background": "#f8fafc", "mainBkg": "#ffffff", "clusterBkg": "#f8fafc", "clusterBorder": "#94a3b8", "primaryColor": "#dbeafe", "primaryBorderColor": "#2563eb", "primaryTextColor": "#0f172a", "lineColor": "#334155", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
+flowchart TB
+    Cases["`Golden
+    questions`"] --> Runner["`Eval
+    runner`"]
+    Runner --> API["`Live
+    API`"]
+    API --> Checks["`Policy
+    checks`"]
+    Checks --> Report["`Pass fail
+    report`"]
+
+    Report --> Ragas["`RAGAS
+    scoring`"]
+    Judges["`Judge
+    models`"] -.-> Ragas
+    Ragas --> Summary["`Release
+    decision`"]
+
+    classDef app fill:#dbeafe,stroke:#2563eb,color:#0f172a;
+    classDef ai fill:#fee2e2,stroke:#dc2626,color:#0f172a;
+    classDef eval fill:#f3e8ff,stroke:#9333ea,color:#0f172a;
+
+    class API app;
+    class Judges,Ragas ai;
+    class Cases,Runner,Checks,Report,Summary eval;
+```
 
 ## Documentation
 
-| Topic | Guide |
-|---|---|
-| Local Python/Node setup, health checks, API examples, ingestion, tests | [docs/local-setup.md](docs/local-setup.md) |
-| Local Docker images and Docker Compose smoke tests | [docs/docker.md](docs/docker.md) |
-| Deterministic evals, RAGAS, guardrail A/B, current baseline | [docs/evaluations.md](docs/evaluations.md) |
-| Local Kubernetes and Azure AKS deployment | [docs/kubernetes.md](docs/kubernetes.md) |
-| Azure bootstrap, platform Terraform, and Key Vault migration | [docs/terraform.md](docs/terraform.md) |
-| GitHub OIDC, CI, ACR push, and AKS deployment | [docs/github-actions.md](docs/github-actions.md) |
-| CI/CD and AKS deployment issues encountered | [docs/ci-cd-issues.md](docs/ci-cd-issues.md) |
-| Deployment roadmap and production hardening | [docs/deployment-roadmap.md](docs/deployment-roadmap.md) |
+| Topic                                                                  | Guide                                                   |
+| ---------------------------------------------------------------------- | ------------------------------------------------------- |
+| Local Python/Node setup, health checks, API examples, ingestion, tests | [docs/local-setup.md](docs/local-setup.md)               |
+| Local Docker images and Docker Compose smoke tests                     | [docs/docker.md](docs/docker.md)                         |
+| Deterministic evals, RAGAS, guardrail A/B, current baseline            | [docs/evaluations.md](docs/evaluations.md)               |
+| Local Kubernetes and Azure AKS deployment                              | [docs/kubernetes.md](docs/kubernetes.md)                 |
+| Azure bootstrap, platform Terraform, and Key Vault migration           | [docs/terraform.md](docs/terraform.md)                   |
+| GitHub OIDC, CI, ACR push, and AKS deployment                          | [docs/github-actions.md](docs/github-actions.md)         |
+| CI/CD and AKS deployment issues encountered                            | [docs/ci-cd-issues.md](docs/ci-cd-issues.md)             |
+| Deployment roadmap and production hardening                            | [docs/deployment-roadmap.md](docs/deployment-roadmap.md) |
 
 ## Azure AKS deployment
 
@@ -141,20 +251,20 @@ Details and troubleshooting: [docs/evaluations.md](docs/evaluations.md).
 
 Latest validated baseline from the Dockerized local stack:
 
-| Metric | Score |
-|---|---:|
-| RAG retrieval rate | 1.000 |
-| Expected source recall | 1.000 |
-| Citation coverage | 1.000 |
-| Citation validity | 1.000 |
-| Required term recall | 1.000 |
+| Metric                              |                 Score |
+| ----------------------------------- | --------------------: |
+| RAG retrieval rate                  |                 1.000 |
+| Expected source recall              |                 1.000 |
+| Citation coverage                   |                 1.000 |
+| Citation validity                   |                 1.000 |
+| Required term recall                |                 1.000 |
 | Guardrail precision/recall/accuracy | 1.000 / 1.000 / 1.000 |
-| Conversation pass rate | 1.000 |
-| RAGAS faithfulness | 0.969 |
-| RAGAS answer relevancy | 0.890 |
-| RAGAS context precision | 0.935 |
-| RAGAS context recall | 0.938 |
-| RAGAS answer correctness | 0.712 |
+| Conversation pass rate              |                 1.000 |
+| RAGAS faithfulness                  |                 0.969 |
+| RAGAS answer relevancy              |                 0.890 |
+| RAGAS context precision             |                 0.935 |
+| RAGAS context recall                |                 0.938 |
+| RAGAS answer correctness            |                 0.712 |
 
 Interpretation: retrieval, citations, guardrails, and conversation memory are passing strongly. The main quality-improvement target is answer correctness/detail alignment while preserving high faithfulness.
 
