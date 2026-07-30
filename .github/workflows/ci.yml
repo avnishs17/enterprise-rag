@@ -2,6 +2,9 @@ name: CI
 
 on:
   pull_request:
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
   workflow_dispatch:
   push:
     branches: [main]
@@ -14,7 +17,6 @@ on:
       - "kubernetes/**"
       - "docker-compose.yml"
       - "app/Dockerfile"
-      - "README.md"
       - ".github/workflows/ci.yml"
 
 permissions:

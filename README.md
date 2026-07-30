@@ -12,6 +12,35 @@ A streaming enterprise RAG assistant for approved Kubernetes, Intel hardware, an
 - **Observability:** Logfire/LangSmith optional traces, Prometheus metrics
 - **Evaluations:** deterministic live checks + optional RAGAS quality scoring
 
+## Architecture
+
+```mermaid
+flowchart TB
+    Browser[Browser] --> Frontend[Next.js frontend\nserver-side API proxy]
+    Frontend -->|same-origin /api| Backend[FastAPI backend\nLangGraph-compatible pipeline]
+
+    Backend --> Retrieval[Qdrant retrieval]
+    Backend --> Embeddings[Jina embeddings and reranking]
+    Backend --> LLM[Nebius primary\nGroq fallback]
+    Backend --> Memory[Upstash Redis\nMem0 semantic memory]
+    Backend --> Database[Neon Postgres]
+    Backend --> Guardrails[Groq safeguard\npolicy classifier]
+
+    subgraph Delivery[Cloud delivery]
+        GitHub[GitHub Actions] --> CI[Tests, lint, frontend build\nKustomize validation]
+        GitHub --> ACR[Azure Container Registry]
+        ACR --> AKS[Azure AKS\nfrontend + backend]
+        KeyVault[Azure Key Vault] -->|CSI Driver + Workload Identity| AKS
+    end
+
+    CI -. validates .-> GitHub
+    AKS --> Frontend
+```
+
+The frontend keeps backend credentials server-side. Local development uses
+Docker Compose or k3d; the validated cloud path builds CPU-based images, stores
+runtime secrets in Key Vault, and deploys the two workloads to AKS.
+
 ## Documentation
 
 | Topic | Guide |
@@ -40,6 +69,10 @@ Ingress IP in `/etc/hosts` and open `http://enterprise-agentic-rag.test/`.
 The complete setup, verification, and teardown sequence is in
 [docs/github-actions.md](docs/github-actions.md). The non-obvious deployment
 failures and their fixes are recorded in [docs/ci-cd-issues.md](docs/ci-cd-issues.md).
+
+The disposable Azure test resources were destroyed after validation. The
+Terraform and GitHub Actions guides reproduce the deployment when another
+cloud test run is needed.
 
 ## Quick start: local dev
 
