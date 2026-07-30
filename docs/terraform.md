@@ -45,13 +45,15 @@ The Azure user running the bootstrap must be able to create role assignments.
 
 ## Bootstrap
 
-Create an ignored local variables file from the example and set the GitHub
-repository in `OWNER/REPOSITORY` format:
+Set the required Terraform variables in the shell. They are not stored in the
+repository, and no `terraform.tfvars` file is required:
 
 ```bash
-cp infra/terraform/bootstrap/terraform.tfvars.example \
-  infra/terraform/bootstrap/terraform.tfvars
+export TF_VAR_github_repository="avnishs17/enterprise-rag"
+export TF_VAR_github_environment="production"
 ```
+
+Change `TF_VAR_github_repository` if deploying a fork.
 
 Then run:
 
@@ -67,13 +69,11 @@ The bootstrap output `github_terraform_client_id` becomes the GitHub Actions
 
 ## Platform
 
-Copy and edit the platform variables with the DNS hostname. The repository is
-already set to `avnishs17/enterprise-rag`; change it only if deploying from a
-fork:
+Set the platform hostname. The repository and environment variables exported
+above are reused by this stack:
 
 ```bash
-cp infra/terraform/platform/terraform.tfvars.example \
-  infra/terraform/platform/terraform.tfvars
+export TF_VAR_app_hostname="enterprise-agentic-rag.test"
 ```
 
 `app_hostname` must contain a hostname only, without `https://`. Terraform
