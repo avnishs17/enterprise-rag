@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "ui/**"
+      - "kubernetes/**"
+      - "docker-compose.yml"
+      - "app/Dockerfile"
+      - ".github/workflows/ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    env:
+      JINA_API_KEY: ci-test-key
+      JINA_EMBEDDING_URL: https://example.test/embedding
+      JINA_MODEL: ci-model
+      FALLBACK_MODEL: ci-fallback
+      JINA_RERANK_URL: https://example.test/rerank
+      JINA_RERANK_MODEL: ci-reranker
+      GROQ_API_KEY: ci-test-key
+      NEBIUS_API_KEY: ci-test-key
+      JUDGE_GROQ_API_KEY: ci-test-key
+      QDRANT_URL: http://localhost:6333
+      QDRANT_API_KEY: ci-test-key
+      NEON_DB_URL: postgresql://ci:ci@localhost:5432/ci
+      UPSTASH_REDIS_REST_URL: https://localhost
+      UPSTASH_REDIS_REST_TOKEN: ci-test-token
+      RAG_API_KEY: ci-test-key
+      ENVIRONMENT: test
+      STRICT_STARTUP: "false"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        run: uv sync --locked --extra dev
+
+      - name: Run backend tests
+        run: uv run pytest -q
+
+      - name: Run backend lint
+        run: uv run ruff check app tests
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    env:
+      RAG_API_URL: http://backend:8000
+      RAG_API_KEY: ci-test-key
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run frontend tests
+        run: npm run test
+
+      - name: Build frontend
+        run: npm run build
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v5
+
+      - name: Render local manifests
+        run: kubectl kustomize kubernetes >/dev/null
+
+      - name: Render AKS manifests
+        run: kubectl kustomize kubernetes/overlays/aks >/dev/null

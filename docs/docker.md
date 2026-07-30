@@ -34,6 +34,19 @@ fuser -k 8000/tcp 3000/tcp || true
 DOCKER_RATE_LIMIT_PER_MINUTE=100 docker compose up --build
 ```
 
+The backend image defaults to CPU-only Torch. To build the CUDA variant on a
+GPU-capable host, use the build-time environment switch:
+
+```bash
+TORCH_VARIANT=cuda docker compose build backend
+```
+
+Switch back to the smaller CPU image with:
+
+```bash
+TORCH_VARIANT=cpu docker compose build backend
+```
+
 Detached mode:
 
 ```bash

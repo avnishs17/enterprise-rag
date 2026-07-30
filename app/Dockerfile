@@ -10,6 +10,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 
+ARG TORCH_VARIANT=cpu
+ENV TORCH_VARIANT=${TORCH_VARIANT}
+
 # Some transitive deps (e.g. annoy via NeMo Guardrails) compile native wheels.
 # Keep compilers in the builder stage only; they are not copied to runtime.
 RUN apt-get update \
@@ -21,6 +24,14 @@ RUN apt-get update \
 COPY pyproject.toml uv.lock README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
+
+# The lockfile and default image use CPU-only Torch. CUDA is an explicit
+# build-time opt-in so the normal local/AKS image does not carry GPU libraries.
+RUN if [ "$TORCH_VARIANT" = "cuda" ]; then \
+      uv pip install --python /app/.venv/bin/python --reinstall --index-url https://pypi.org/simple torch==2.13.0; \
+    elif [ "$TORCH_VARIANT" != "cpu" ]; then \
+      echo "TORCH_VARIANT must be cpu or cuda" >&2; exit 1; \
+    fi
 
 FROM python:3.11-slim-bookworm AS runtime
 

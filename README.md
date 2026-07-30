@@ -19,7 +19,10 @@ A streaming enterprise RAG assistant for approved Kubernetes, Intel hardware, an
 | Local Python/Node setup, health checks, API examples, ingestion, tests | [docs/local-setup.md](docs/local-setup.md) |
 | Local Docker images and Docker Compose smoke tests | [docs/docker.md](docs/docker.md) |
 | Deterministic evals, RAGAS, guardrail A/B, current baseline | [docs/evaluations.md](docs/evaluations.md) |
-| Kubernetes/CI/CD/cloud rollout plan | [docs/deployment-roadmap.md](docs/deployment-roadmap.md) |
+| Local Kubernetes and Azure AKS deployment | [docs/kubernetes.md](docs/kubernetes.md) |
+| Azure bootstrap, platform Terraform, and Key Vault migration | [docs/terraform.md](docs/terraform.md) |
+| GitHub OIDC, CI, ACR push, and AKS deployment | [docs/github-actions.md](docs/github-actions.md) |
+| Deployment roadmap and production hardening | [docs/deployment-roadmap.md](docs/deployment-roadmap.md) |
 
 ## Quick start: local dev
 
@@ -119,4 +122,4 @@ Interpretation: retrieval, citations, guardrails, and conversation memory are pa
 - Upload job state uses in-process memory and FastAPI background tasks. Replace it with a durable worker queue before multi-worker production deployment.
 - `RAG_API_KEY` is service authentication, not user authentication or tenant isolation. Add identity, authorization, and tenant-scoped data access before production.
 - The approved-domain guardrail policy is authoritative. Ingesting a document does not authorize a new domain.
-- Cloud deployment docs are intentionally pending until local Docker validation is complete.
+- The current cloud validation target is a disposable Azure AKS deployment; it uses a local `.test` hostname and does not provide public DNS or production identity/tenant isolation.

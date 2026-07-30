@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: app/Dockerfile
+      args:
+        TORCH_VARIANT: ${TORCH_VARIANT:-cpu}
     image: enterprise-agentic-rag-backend:local
     env_file:
       - .env

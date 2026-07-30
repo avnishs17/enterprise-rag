@@ -11,13 +11,13 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
+from app.ingestion.routes import router as ingest_router
 from app.services.conversation_routes import router as conversation_router
 from app.services.health.routes import router as health_router
-from app.ingestion.routes import router as ingest_router
-from app.utils.security import verify_api_key
 from app.services.startup import lifespan
 from app.services.streaming import StreamQueryRequest, query_events, stream_query
 from app.utils.observability import configure_logfire
+from app.utils.security import verify_api_key
 
 configure_logfire()
 

@@ -1,0 +1,4 @@
+location           = "southeastasia"
+project_slug       = "enterprise-rag"
+github_repository  = "avnishs17/enterprise-rag"
+github_environment = "production"

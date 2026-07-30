@@ -19,7 +19,7 @@ k3d cluster create rag-local --servers 1 --agents 0 --wait -p "8080:80@loadbalan
 Build and import the local images:
 
 ```bash
-docker compose build backend frontend
+TORCH_VARIANT=cpu docker compose build backend frontend
 k3d image import enterprise-agentic-rag-backend:local enterprise-agentic-rag-frontend:local --cluster rag-local
 ```
 
@@ -52,8 +52,26 @@ from `/ready` means one of those services or credentials is unavailable.
 
 ## Azure AKS changes
 
-The same `kubernetes/` resources can be used in AKS. Update the `images` block
-in `kubernetes/kustomization.yaml` to point at ACR, for example:
+The AKS deployment uses `kubernetes/overlays/aks/` over the local base. The
+recommended region for the available student-subscription regions is
+`southeastasia`.
+
+The overlay adds the ACR image names, AKS application-routing ingress class,
+production host settings, and Azure Key Vault Workload Identity integration.
+Its placeholder values are replaced by the deployment workflow from Terraform
+outputs:
+
+```text
+REPLACE_WITH_ACR_LOGIN_SERVER
+REPLACE_WITH_GIT_SHA
+__AKS_HOST__
+__KEYVAULT_NAME__
+__KEYVAULT_WORKLOAD_CLIENT_ID__
+__AZURE_TENANT_ID__
+```
+
+The base images are still local-only. For AKS, render the overlay with the
+ACR login server and immutable Git SHA:
 
 ```yaml
 images:
@@ -65,11 +83,30 @@ images:
     newTag: <git-sha>
 ```
 
-Then replace the local Secret creation with an AKS-compatible secret manager
-workflow, such as Azure Key Vault CSI or a CI/CD-injected Kubernetes Secret.
-Set the Ingress host and `RAG_API_URL`/trusted-host values for the AKS domain,
-and add the Ingress class or controller annotations required by the chosen AKS
-Ingress controller.
+The AKS cluster must enable the application routing add-on and the Azure Key
+Vault Secrets Store CSI provider. The deployment workflow applies the rendered
+overlay after Terraform has created the Key Vault, workload identity, and ACR.
+The managed ingress class is
+`webapprouting.kubernetes.azure.com`.
+
+Azure assigns the Ingress a public IP, but no external domain is required for
+this AKS validation. The simplest test path bypasses DNS entirely:
+
+```bash
+kubectl -n enterprise-rag port-forward service/rag-frontend 3000:3000
+```
+
+Open `http://localhost:3000`. If you also want to test the AKS Ingress path,
+use the same `app_hostname` value in Terraform and the rendered overlay, then
+map it locally after the Ingress receives an IP:
+
+```bash
+kubectl get ingress -n enterprise-rag -o wide
+sudo sh -c 'echo "<EXTERNAL-IP> enterprise-agentic-rag.test" >> /etc/hosts'
+```
+
+Open `http://enterprise-agentic-rag.test`. This mapping exists only on your
+laptop and does not require public DNS.
 
 ## Rebuild locally
 
@@ -78,6 +115,10 @@ docker compose build backend frontend
 k3d image import enterprise-agentic-rag-backend:local enterprise-agentic-rag-frontend:local --cluster rag-local
 kubectl -n enterprise-rag rollout restart deployment/rag-backend deployment/rag-frontend
 ```
+
+Use `TORCH_VARIANT=cuda` instead when building for a GPU-capable target. The
+variable controls image installation at build time; changing it on a running
+pod cannot add or remove Torch packages.
 
 Remove the local cluster with:
 

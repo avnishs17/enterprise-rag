@@ -1,6 +1,7 @@
 import logfire
 from pypdf import PdfReader
 
+
 def parse_pdf(file_path: str):
     """
     Extract text from pdf locally using pypdf.

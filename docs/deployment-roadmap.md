@@ -1,19 +1,20 @@
 # Deployment roadmap
 
-This project is ready to move from local Docker validation into Kubernetes and CI/CD. Keep cloud-specific guides separate from the root README.
+This project has completed local Docker/Kubernetes validation and has an Azure
+AKS deployment path. Keep cloud-specific commands in the dedicated guides.
 
 ## Recommended order
 
 ```text
-1. Local Docker validation
-2. Local Kubernetes manifests
-3. CI: lint, tests, builds
-4. Registry push
-5. CD to cloud Kubernetes
+1. Local Docker validation: [Docker guide](docker.md)
+2. Local Kubernetes validation: [Kubernetes guide](kubernetes.md)
+3. Azure bootstrap and platform: [Terraform guide](terraform.md)
+4. Key Vault migration and GitHub OIDC setup: [GitHub Actions guide](github-actions.md)
+5. CI, ACR image push, and AKS rollout through GitHub Actions
 6. Production hardening
 ```
 
-## Local Kubernetes next
+## Runtime layout
 
 Create Kubernetes manifests for two runtime workloads:
 
@@ -45,16 +46,14 @@ Frontend needs only server-side proxy config:
 - `RAG_API_URL=http://rag-backend:8000`
 - `RAG_API_KEY=<same backend bearer key>`
 
-## CI/CD guides to add later
+## Terraform and CI/CD
 
-Use separate docs when implementing provider-specific deployment:
-
-```text
-docs/kubernetes.md
-docs/cicd-github-actions.md
-docs/aws-eks.md
-docs/azure-aks.md
-```
+Azure infrastructure is defined under `infra/terraform/`. Use the bootstrap
+stack once to create remote state and the GitHub OIDC Terraform identity, then
+use the platform stack for AKS, ACR, Key Vault, and Workload Identity. See
+`docs/terraform.md`. The complete GitHub Actions sequence, including Key Vault
+secret migration and environment configuration, is in
+`docs/github-actions.md`.
 
 ## Production blockers before real users
 
@@ -63,6 +62,5 @@ docs/azure-aks.md
 - Add monitoring alerts and dashboards.
 - Add backup/restore policy for Qdrant, Redis history, and Neon.
 - Add Locust load tests for `/query` and `/query/stream`.
-- Decide cloud registry and secret manager:
-  - AWS: ECR + Secrets Manager/Parameter Store + EKS
-  - Azure: ACR + Key Vault + AKS
+- Decide whether to retain the current Azure deployment or create a separate
+  AWS implementation; the current tested path is Azure ACR + Key Vault + AKS.

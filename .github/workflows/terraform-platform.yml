@@ -1,0 +1,71 @@
+name: Terraform Platform
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
+      - "scripts/terraform-platform-init.sh"
+      - ".github/workflows/terraform-platform.yml"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply the reviewed platform plan
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_USE_OIDC: true
+  ARM_USE_AZUREAD: true
+  TF_IN_AUTOMATION: true
+  TF_VAR_location: southeastasia
+  TF_VAR_github_repository: ${{ github.repository }}
+  TF_VAR_github_environment: production
+  TF_VAR_app_hostname: ${{ vars.AKS_HOSTNAME }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive infra/terraform/bootstrap infra/terraform/platform
+
+      - name: Initialize platform state
+        run: |
+          terraform -chdir=infra/terraform/platform init -input=false -reconfigure \
+            -backend-config="resource_group_name=${{ vars.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            -backend-config="key=${{ vars.TF_STATE_KEY }}"
+
+      - name: Validate platform configuration
+        run: terraform -chdir=infra/terraform/platform validate
+
+      - name: Create platform plan
+        run: terraform -chdir=infra/terraform/platform plan -input=false -out=platform.tfplan
+
+      - name: Apply platform plan
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.apply }}
+        run: terraform -chdir=infra/terraform/platform apply -input=false -auto-approve platform.tfplan

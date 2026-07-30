@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rag-frontend
+  namespace: enterprise-rag
+spec:
+  ingressClassName: webapprouting.kubernetes.azure.com
+  rules:
+    - host: __AKS_HOST__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rag-frontend
+                port:
+                  name: http

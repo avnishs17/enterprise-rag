@@ -1,0 +1,8 @@
+location             = "southeastasia"
+project_slug         = "enterprise-rag"
+project_resource_group_name = "rg-enterprise-rag"
+cluster_name         = "aks-enterprise-rag"
+github_repository    = "avnishs17/enterprise-rag"
+github_environment   = "production"
+app_hostname         = "enterprise-agentic-rag.test"
+node_vm_size         = "Standard_B2s_v2"

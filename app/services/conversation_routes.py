@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, Path, status
 from fastapi.responses import Response
 
 from app.services.conversation import delete_history
-from app.services.memory import delete_memories, is_enabled as mem0_enabled
+from app.services.memory import delete_memories
+from app.services.memory import is_enabled as mem0_enabled
 from app.utils.security import verify_api_key
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])

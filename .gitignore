@@ -50,3 +50,12 @@ ui/.next/
 # folder not to be tracked
 processed_data/*
 DATA/*
+
+# Terraform
+.terraform/
+.terraform-data/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+*.tfplan

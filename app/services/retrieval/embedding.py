@@ -1,10 +1,10 @@
 import time
+
 import logfire
 import requests
-from tenacity import before_sleep_log, retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import before_sleep_log, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.config import settings
-
 
 _active_model = None
 _model_type: str | None = None

@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-backend
+  namespace: enterprise-rag
+spec:
+  template:
+    metadata:
+      labels:
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: rag-backend
+      containers:
+        - name: backend
+          envFrom:
+            - secretRef:
+                name: rag-backend-secrets
+          env:
+            - name: ENVIRONMENT
+              value: production
+            - name: STRICT_STARTUP
+              value: "true"
+            - name: TRUSTED_HOSTS
+              value: __AKS_HOST__,rag-backend
+            - name: CORS_ORIGINS
+              value: https://__AKS_HOST__
+          volumeMounts:
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: rag-backend-keyvault

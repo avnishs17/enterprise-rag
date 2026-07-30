@@ -1,0 +1,118 @@
+name: Deploy AKS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "ui/**"
+      - "app/Dockerfile"
+      - "ui/Dockerfile"
+      - "kubernetes/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/deploy-aks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  ARM_CLIENT_ID: ${{ secrets.AZURE_DEPLOYER_CLIENT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_USE_OIDC: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      AKS_NAME: ${{ vars.AKS_NAME }}
+      AKS_RESOURCE_GROUP: ${{ vars.AKS_RESOURCE_GROUP }}
+      KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_DEPLOYER_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Resolve Azure deployment values
+        id: azure-values
+        shell: bash
+        run: |
+          echo "acr_login_server=$(az acr show --name "$ACR_NAME" --resource-group "$AKS_RESOURCE_GROUP" --query loginServer -o tsv)" >> "$GITHUB_OUTPUT"
+          echo "keyvault_workload_client_id=$(az identity show --name id-enterprise-rag-keyvault --resource-group "$AKS_RESOURCE_GROUP" --query clientId -o tsv)" >> "$GITHUB_OUTPUT"
+          echo "tenant_id=$(az account show --query tenantId -o tsv)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to ACR
+        run: az acr login --name "$ACR_NAME"
+
+      - name: Build and push backend image
+        run: |
+          docker buildx build \
+            --file app/Dockerfile \
+            --build-arg TORCH_VARIANT=cpu \
+            --tag "${{ steps.azure-values.outputs.acr_login_server }}/enterprise-agentic-rag-backend:${GITHUB_SHA}" \
+            --push .
+
+      - name: Build and push frontend image
+        run: |
+          docker buildx build \
+            --file ui/Dockerfile \
+            --tag "${{ steps.azure-values.outputs.acr_login_server }}/enterprise-agentic-rag-frontend:${GITHUB_SHA}" \
+            --push ui
+
+      - name: Install kubectl and kubelogin
+        run: |
+          az aks install-cli \
+            --install-location "$RUNNER_TEMP/kubectl" \
+            --kubelogin-install-location "$RUNNER_TEMP/kubelogin"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Configure AKS context
+        run: |
+          az aks get-credentials \
+            --resource-group "$AKS_RESOURCE_GROUP" \
+            --name "$AKS_NAME" \
+            --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+
+      - name: Render and validate AKS manifests
+        run: |
+          cp -R kubernetes "$RUNNER_TEMP/kubernetes"
+          while IFS= read -r -d '' manifest; do
+            sed -i \
+              -e "s|REPLACE_WITH_ACR_LOGIN_SERVER|${{ steps.azure-values.outputs.acr_login_server }}|g" \
+              -e "s|REPLACE_WITH_GIT_SHA|${GITHUB_SHA}|g" \
+              -e "s|__AKS_HOST__|${{ vars.AKS_HOSTNAME }}|g" \
+              -e "s|__KEYVAULT_NAME__|${KEY_VAULT_NAME}|g" \
+              -e "s|__KEYVAULT_WORKLOAD_CLIENT_ID__|${{ steps.azure-values.outputs.keyvault_workload_client_id }}|g" \
+              -e "s|__AZURE_TENANT_ID__|${{ steps.azure-values.outputs.tenant_id }}|g" \
+              "$manifest"
+          done < <(find "$RUNNER_TEMP/kubernetes" -type f -name '*.yaml' -print0)
+          kubectl kustomize "$RUNNER_TEMP/kubernetes/overlays/aks" >/dev/null
+
+      - name: Apply AKS manifests
+        run: kubectl apply -k "$RUNNER_TEMP/kubernetes/overlays/aks"
+
+      - name: Wait for backend rollout
+        run: kubectl -n enterprise-rag rollout status deployment/rag-backend --timeout=10m
+
+      - name: Wait for frontend rollout
+        run: kubectl -n enterprise-rag rollout status deployment/rag-frontend --timeout=10m
+
+      - name: Show deployment status
+        if: always()
+        run: |
+          kubectl -n enterprise-rag get pods,svc,ingress

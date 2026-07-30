@@ -5,7 +5,6 @@ from tenacity import before_sleep_log, retry, stop_after_attempt, wait_exponenti
 from app.config import settings
 from app.services.retrieval.embedding import embed_query
 
-
 # Initialize qdrant client
 client = QdrantClient(
     url=settings.QDRANT_URL,
