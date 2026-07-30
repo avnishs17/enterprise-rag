@@ -4,6 +4,8 @@ metadata:
   name: rag-backend
   namespace: enterprise-rag
 spec:
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
