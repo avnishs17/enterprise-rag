@@ -22,6 +22,7 @@ A streaming enterprise RAG assistant for approved Kubernetes, Intel hardware, an
 | Local Kubernetes and Azure AKS deployment | [docs/kubernetes.md](docs/kubernetes.md) |
 | Azure bootstrap, platform Terraform, and Key Vault migration | [docs/terraform.md](docs/terraform.md) |
 | GitHub OIDC, CI, ACR push, and AKS deployment | [docs/github-actions.md](docs/github-actions.md) |
+| CI/CD and AKS deployment issues encountered | [docs/ci-cd-issues.md](docs/ci-cd-issues.md) |
 | Deployment roadmap and production hardening | [docs/deployment-roadmap.md](docs/deployment-roadmap.md) |
 
 ## Azure AKS deployment
@@ -32,6 +33,13 @@ infrastructure and secret migration, then the [GitHub Actions guide](docs/github
 for environment configuration, image deployment, verification, and teardown.
 The CI workflow can also be started manually to validate backend, frontend, and
 Kubernetes changes without deploying Azure resources.
+
+The cloud validation deployment does not require a purchased domain. Terraform
+uses the local hostname `enterprise-agentic-rag.test`; after deployment, map the
+Ingress IP in `/etc/hosts` and open `http://enterprise-agentic-rag.test/`.
+The complete setup, verification, and teardown sequence is in
+[docs/github-actions.md](docs/github-actions.md). The non-obvious deployment
+failures and their fixes are recorded in [docs/ci-cd-issues.md](docs/ci-cd-issues.md).
 
 ## Quick start: local dev
 
@@ -132,3 +140,4 @@ Interpretation: retrieval, citations, guardrails, and conversation memory are pa
 - `RAG_API_KEY` is service authentication, not user authentication or tenant isolation. Add identity, authorization, and tenant-scoped data access before production.
 - The approved-domain guardrail policy is authoritative. Ingesting a document does not authorize a new domain.
 - The current cloud validation target is a disposable Azure AKS deployment; it uses a local `.test` hostname and does not provide public DNS or production identity/tenant isolation.
+- The AKS test cluster uses one small system node and the backend uses a `Recreate` rollout strategy to avoid requiring temporary CPU for two backend pods. This can cause a short backend interruption during deployment; use multiple appropriately sized nodes and a rolling strategy before production use.

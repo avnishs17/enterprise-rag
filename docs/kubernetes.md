@@ -108,6 +108,22 @@ sudo sh -c 'echo "<EXTERNAL-IP> enterprise-agentic-rag.test" >> /etc/hosts'
 Open `http://enterprise-agentic-rag.test`. This mapping exists only on your
 laptop and does not require public DNS.
 
+The public verification checks are the frontend root and the frontend's
+backend health proxy:
+
+```bash
+curl -i -H 'Host: enterprise-agentic-rag.test' "http://<EXTERNAL-IP>/"
+curl -sS -H 'Host: enterprise-agentic-rag.test' "http://<EXTERNAL-IP>/api/rag/health"
+```
+
+Use a backend service port-forward to check `/ready`; it is not a public
+Ingress route:
+
+```bash
+kubectl -n enterprise-rag port-forward service/rag-backend 8000:8000
+curl -i http://localhost:8000/ready
+```
+
 ## Rebuild locally
 
 ```bash

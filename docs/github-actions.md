@@ -160,10 +160,44 @@ kubelogin convert-kubeconfig -l azurecli
 kubectl -n enterprise-rag get pods,services,ingress
 kubectl -n enterprise-rag rollout status deployment/rag-backend
 kubectl -n enterprise-rag rollout status deployment/rag-frontend
+```
+
+For a frontend-only check, port-forward the frontend service and open
+<http://localhost:3000>:
+
+```bash
 kubectl -n enterprise-rag port-forward service/rag-frontend 3000:3000
 ```
 
-Open <http://localhost:3000> while the port-forward is running.
+For the public Ingress test used by the validated deployment, get the assigned
+IP and map the configured test hostname locally:
+
+```bash
+INGRESS_IP="$(kubectl -n enterprise-rag get ingress rag-frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+printf '%s enterprise-agentic-rag.test\n' "$INGRESS_IP"
+sudo sh -c "printf '%s enterprise-agentic-rag.test\\n' '$INGRESS_IP' >> /etc/hosts"
+
+curl -i -H 'Host: enterprise-agentic-rag.test' "http://${INGRESS_IP}/"
+curl -sS -H 'Host: enterprise-agentic-rag.test' "http://${INGRESS_IP}/api/rag/health"
+```
+
+The expected public responses are HTTP `200` for `/` and
+`{"status":"ok"}` for `/api/rag/health`. The backend `/ready` endpoint is an
+internal Kubernetes probe and is not routed through the frontend proxy. Check
+it directly when needed:
+
+```bash
+kubectl -n enterprise-rag port-forward service/rag-backend 8000:8000
+curl -i http://localhost:8000/ready
+```
+
+The `.test` hostname is served over HTTP for this disposable validation. A
+browser may retain an older Next.js bundle after an image rollout; use a hard
+refresh (`Ctrl+Shift+R`) when validating a newly deployed frontend.
+
+See [ci-cd-issues.md](ci-cd-issues.md) for the logical deployment failures
+encountered during this setup and the preventive checks now captured in the
+repository.
 
 ## Tear down the test deployment
 

@@ -1,7 +1,8 @@
 # Deployment roadmap
 
-This project has completed local Docker/Kubernetes validation and has an Azure
-AKS deployment path. Keep cloud-specific commands in the dedicated guides.
+This project has completed local Docker/Kubernetes validation and a full Azure
+AKS deployment through GitHub Actions. Keep cloud-specific commands in the
+dedicated guides.
 
 ## Recommended order
 
@@ -10,7 +11,7 @@ AKS deployment path. Keep cloud-specific commands in the dedicated guides.
 2. Local Kubernetes validation: [Kubernetes guide](kubernetes.md)
 3. Azure bootstrap and platform: [Terraform guide](terraform.md)
 4. Key Vault migration and GitHub OIDC setup: [GitHub Actions guide](github-actions.md)
-5. CI, ACR image push, and AKS rollout through GitHub Actions
+5. Completed: CI, ACR image push, and AKS rollout through GitHub Actions
 6. Production hardening
 ```
 
@@ -54,6 +55,11 @@ use the platform stack for AKS, ACR, Key Vault, and Workload Identity. See
 `docs/terraform.md`. The complete GitHub Actions sequence, including Key Vault
 secret migration and environment configuration, is in
 `docs/github-actions.md`.
+
+The tested deployment path is documented in `docs/ci-cd-issues.md`, including
+the immutable GitHub OIDC subject format, separate Terraform and deployment
+identities, Key Vault migration, Azure permission boundaries, and the
+single-node AKS rollout constraint.
 
 ## Production blockers before real users
 
