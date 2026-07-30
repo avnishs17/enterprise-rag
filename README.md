@@ -24,6 +24,13 @@ A streaming enterprise RAG assistant for approved Kubernetes, Intel hardware, an
 | GitHub OIDC, CI, ACR push, and AKS deployment | [docs/github-actions.md](docs/github-actions.md) |
 | Deployment roadmap and production hardening | [docs/deployment-roadmap.md](docs/deployment-roadmap.md) |
 
+## Azure AKS deployment
+
+The validated cloud path uses Azure ACR, AKS, Key Vault, Workload Identity,
+and GitHub Actions OIDC. Follow the [Terraform guide](docs/terraform.md) for
+infrastructure and secret migration, then the [GitHub Actions guide](docs/github-actions.md)
+for environment configuration, image deployment, verification, and teardown.
+
 ## Quick start: local dev
 
 ```bash
