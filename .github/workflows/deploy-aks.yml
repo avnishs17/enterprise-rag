@@ -48,12 +48,19 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Resolve Azure deployment values
-        id: azure-values
         shell: bash
         run: |
-          echo "acr_login_server=$(az acr show --name "$ACR_NAME" --resource-group "$AKS_RESOURCE_GROUP" --query loginServer -o tsv)" >> "$GITHUB_OUTPUT"
-          echo "keyvault_workload_client_id=$(az identity show --name id-enterprise-rag-keyvault --resource-group "$AKS_RESOURCE_GROUP" --query clientId -o tsv)" >> "$GITHUB_OUTPUT"
-          echo "tenant_id=$(az account show --query tenantId -o tsv)" >> "$GITHUB_OUTPUT"
+          ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --resource-group "$AKS_RESOURCE_GROUP" --query loginServer -o tsv)"
+          KEYVAULT_WORKLOAD_CLIENT_ID="$(az identity show --name id-enterprise-rag-keyvault --resource-group "$AKS_RESOURCE_GROUP" --query clientId -o tsv)"
+          AZURE_TENANT_ID_VALUE="$(az account show --query tenantId -o tsv)"
+          test -n "$ACR_LOGIN_SERVER"
+          test -n "$KEYVAULT_WORKLOAD_CLIENT_ID"
+          test -n "$AZURE_TENANT_ID_VALUE"
+          {
+            echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER"
+            echo "KEYVAULT_WORKLOAD_CLIENT_ID=$KEYVAULT_WORKLOAD_CLIENT_ID"
+            echo "AZURE_TENANT_ID_VALUE=$AZURE_TENANT_ID_VALUE"
+          } >> "$GITHUB_ENV"
 
       - name: Log in to ACR
         run: az acr login --name "$ACR_NAME"
@@ -63,14 +70,14 @@ jobs:
           docker buildx build \
             --file app/Dockerfile \
             --build-arg TORCH_VARIANT=cpu \
-            --tag "${{ steps.azure-values.outputs.acr_login_server }}/enterprise-agentic-rag-backend:${GITHUB_SHA}" \
+            --tag "$ACR_LOGIN_SERVER/enterprise-agentic-rag-backend:${GITHUB_SHA}" \
             --push .
 
       - name: Build and push frontend image
         run: |
           docker buildx build \
             --file ui/Dockerfile \
-            --tag "${{ steps.azure-values.outputs.acr_login_server }}/enterprise-agentic-rag-frontend:${GITHUB_SHA}" \
+            --tag "$ACR_LOGIN_SERVER/enterprise-agentic-rag-frontend:${GITHUB_SHA}" \
             --push ui
 
       - name: Install kubectl and kubelogin
@@ -81,6 +88,7 @@ jobs:
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
       - name: Configure AKS context
+        id: aks-context
         run: |
           az aks get-credentials \
             --resource-group "$AKS_RESOURCE_GROUP" \
@@ -93,12 +101,12 @@ jobs:
           cp -R kubernetes "$RUNNER_TEMP/kubernetes"
           while IFS= read -r -d '' manifest; do
             sed -i \
-              -e "s|REPLACE_WITH_ACR_LOGIN_SERVER|${{ steps.azure-values.outputs.acr_login_server }}|g" \
+              -e "s|REPLACE_WITH_ACR_LOGIN_SERVER|${ACR_LOGIN_SERVER}|g" \
               -e "s|REPLACE_WITH_GIT_SHA|${GITHUB_SHA}|g" \
               -e "s|__AKS_HOST__|${{ vars.AKS_HOSTNAME }}|g" \
               -e "s|__KEYVAULT_NAME__|${KEY_VAULT_NAME}|g" \
-              -e "s|__KEYVAULT_WORKLOAD_CLIENT_ID__|${{ steps.azure-values.outputs.keyvault_workload_client_id }}|g" \
-              -e "s|__AZURE_TENANT_ID__|${{ steps.azure-values.outputs.tenant_id }}|g" \
+              -e "s|__KEYVAULT_WORKLOAD_CLIENT_ID__|${KEYVAULT_WORKLOAD_CLIENT_ID}|g" \
+              -e "s|__AZURE_TENANT_ID__|${AZURE_TENANT_ID_VALUE}|g" \
               "$manifest"
           done < <(find "$RUNNER_TEMP/kubernetes" -type f -name '*.yaml' -print0)
           kubectl kustomize "$RUNNER_TEMP/kubernetes/overlays/aks" >/dev/null
@@ -113,6 +121,6 @@ jobs:
         run: kubectl -n enterprise-rag rollout status deployment/rag-frontend --timeout=10m
 
       - name: Show deployment status
-        if: always()
+        if: ${{ always() && steps.aks-context.outcome == 'success' }}
         run: |
           kubectl -n enterprise-rag get pods,svc,ingress
