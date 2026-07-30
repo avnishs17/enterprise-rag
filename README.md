@@ -30,6 +30,8 @@ The validated cloud path uses Azure ACR, AKS, Key Vault, Workload Identity,
 and GitHub Actions OIDC. Follow the [Terraform guide](docs/terraform.md) for
 infrastructure and secret migration, then the [GitHub Actions guide](docs/github-actions.md)
 for environment configuration, image deployment, verification, and teardown.
+The CI workflow can also be started manually to validate backend, frontend, and
+Kubernetes changes without deploying Azure resources.
 
 ## Quick start: local dev
 
