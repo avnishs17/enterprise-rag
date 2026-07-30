@@ -14,32 +14,23 @@ A streaming enterprise RAG assistant for approved Kubernetes, Intel hardware, an
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    Browser[Browser] --> Frontend[Next.js frontend\nserver-side API proxy]
-    Frontend -->|same-origin /api| Backend[FastAPI backend\nLangGraph-compatible pipeline]
+The editable source is [enterprise-rag-architecture.tldraw](architecture/enterprise-rag-architecture.tldraw).
 
-    Backend --> Retrieval[Qdrant retrieval]
-    Backend --> Embeddings[Jina embeddings and reranking]
-    Backend --> LLM[Nebius primary\nGroq fallback]
-    Backend --> Memory[Upstash Redis\nMem0 semantic memory]
-    Backend --> Database[Neon Postgres]
-    Backend --> Guardrails[Groq safeguard\npolicy classifier]
+### Document Indexing
 
-    subgraph Delivery[Cloud delivery]
-        GitHub[GitHub Actions] --> CI[Tests, lint, frontend build\nKustomize validation]
-        GitHub --> ACR[Azure Container Registry]
-        ACR --> AKS[Azure AKS\nfrontend + backend]
-        KeyVault[Azure Key Vault] -->|CSI Driver + Workload Identity| AKS
-    end
+[![Document indexing flow](architecture/images/01-document-indexing.png)](architecture/images/01-document-indexing.png?raw=true)
 
-    CI -. validates .-> GitHub
-    AKS --> Frontend
-```
+### Query Answer Flow
 
-The frontend keeps backend credentials server-side. Local development uses
-Docker Compose or k3d; the validated cloud path builds CPU-based images, stores
-runtime secrets in Key Vault, and deploys the two workloads to AKS.
+[![Query answer flow](architecture/images/02-query-answer-flow.png)](architecture/images/02-query-answer-flow.png?raw=true)
+
+### Azure Deployment
+
+[![Azure deployment flow](architecture/images/03-azure-deployment.png)](architecture/images/03-azure-deployment.png?raw=true)
+
+### Evaluation
+
+[![Evaluation flow](architecture/images/04-evaluation.png)](architecture/images/04-evaluation.png?raw=true)
 
 ## Documentation
 
