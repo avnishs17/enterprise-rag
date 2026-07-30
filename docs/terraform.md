@@ -51,9 +51,13 @@ repository, and no `terraform.tfvars` file is required:
 ```bash
 export TF_VAR_github_repository="avnishs17/enterprise-rag"
 export TF_VAR_github_environment="production"
+export TF_VAR_github_repository_owner_id="$(gh api repos/avnishs17/enterprise-rag --jq '.owner.id')"
+export TF_VAR_github_repository_id="$(gh api repos/avnishs17/enterprise-rag --jq '.id')"
 ```
 
-Change `TF_VAR_github_repository` if deploying a fork.
+Change `TF_VAR_github_repository` and the `gh api` repository path if deploying
+a fork. The numeric IDs are required because newer GitHub repositories use
+immutable OIDC subjects.
 
 Then run:
 

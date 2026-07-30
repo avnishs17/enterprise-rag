@@ -13,8 +13,11 @@ resource "random_string" "suffix" {
 }
 
 locals {
-  acr_name       = var.acr_name != "" ? var.acr_name : "acr${replace(var.project_slug, "-", "")}${random_string.suffix.result}"
-  key_vault_name = var.key_vault_name != "" ? var.key_vault_name : "kv-${var.project_slug}-${random_string.suffix.result}"
+  acr_name                = var.acr_name != "" ? var.acr_name : "acr${replace(var.project_slug, "-", "")}${random_string.suffix.result}"
+  key_vault_name          = var.key_vault_name != "" ? var.key_vault_name : "kv-${var.project_slug}-${random_string.suffix.result}"
+  github_repository_owner = split("/", var.github_repository)[0]
+  github_repository_name  = split("/", var.github_repository)[1]
+  github_oidc_subject     = "repo:${local.github_repository_owner}@${var.github_repository_owner_id}/${local.github_repository_name}@${var.github_repository_id}:environment:${var.github_environment}"
 }
 
 resource "azurerm_container_registry" "main" {
@@ -124,7 +127,7 @@ resource "azurerm_federated_identity_credential" "github_deployer" {
   user_assigned_identity_id = azurerm_user_assigned_identity.github_deployer.id
   issuer                    = "https://token.actions.githubusercontent.com"
   audience                  = ["api://AzureADTokenExchange"]
-  subject                   = "repo:${var.github_repository}:environment:${var.github_environment}"
+  subject                   = local.github_oidc_subject
 }
 
 resource "azurerm_role_assignment" "github_acr_push" {

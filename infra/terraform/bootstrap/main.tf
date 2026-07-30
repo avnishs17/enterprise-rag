@@ -11,6 +11,9 @@ resource "random_string" "suffix" {
 locals {
   state_storage_account_name = var.state_storage_account_name != "" ? var.state_storage_account_name : "st${replace(var.project_slug, "-", "")}${random_string.suffix.result}"
   github_identity_name       = "id-${var.project_slug}-terraform"
+  github_repository_owner    = split("/", var.github_repository)[0]
+  github_repository_name     = split("/", var.github_repository)[1]
+  github_oidc_subject        = "repo:${local.github_repository_owner}@${var.github_repository_owner_id}/${local.github_repository_name}@${var.github_repository_id}:environment:${var.github_environment}"
 }
 
 resource "azurerm_resource_group" "state" {
@@ -55,7 +58,7 @@ resource "azurerm_federated_identity_credential" "github_production" {
   user_assigned_identity_id = azurerm_user_assigned_identity.github_terraform.id
   issuer                    = "https://token.actions.githubusercontent.com"
   audience                  = ["api://AzureADTokenExchange"]
-  subject                   = "repo:${var.github_repository}:environment:${var.github_environment}"
+  subject                   = local.github_oidc_subject
 }
 
 resource "azurerm_role_assignment" "current_state_blob" {
