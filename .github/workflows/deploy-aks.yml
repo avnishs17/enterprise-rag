@@ -33,6 +33,7 @@ jobs:
       AKS_NAME: ${{ vars.AKS_NAME }}
       AKS_RESOURCE_GROUP: ${{ vars.AKS_RESOURCE_GROUP }}
       KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+      KEYVAULT_WORKLOAD_CLIENT_ID: ${{ vars.KEYVAULT_WORKLOAD_CLIENT_ID }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -50,15 +51,13 @@ jobs:
       - name: Resolve Azure deployment values
         shell: bash
         run: |
-          ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --resource-group "$AKS_RESOURCE_GROUP" --query loginServer -o tsv)"
-          KEYVAULT_WORKLOAD_CLIENT_ID="$(az identity show --name id-enterprise-rag-keyvault --resource-group "$AKS_RESOURCE_GROUP" --query clientId -o tsv)"
-          AZURE_TENANT_ID_VALUE="$(az account show --query tenantId -o tsv)"
+          ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
+          AZURE_TENANT_ID_VALUE="$ARM_TENANT_ID"
           test -n "$ACR_LOGIN_SERVER"
           test -n "$KEYVAULT_WORKLOAD_CLIENT_ID"
           test -n "$AZURE_TENANT_ID_VALUE"
           {
             echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER"
-            echo "KEYVAULT_WORKLOAD_CLIENT_ID=$KEYVAULT_WORKLOAD_CLIENT_ID"
             echo "AZURE_TENANT_ID_VALUE=$AZURE_TENANT_ID_VALUE"
           } >> "$GITHUB_ENV"
 

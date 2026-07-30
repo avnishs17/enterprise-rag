@@ -61,6 +61,7 @@ ACR_NAME=<platform ACR name>
 AKS_NAME=aks-enterprise-rag
 AKS_RESOURCE_GROUP=rg-enterprise-rag
 KEY_VAULT_NAME=<platform Key Vault name>
+KEYVAULT_WORKLOAD_CLIENT_ID=<platform Workload Identity client ID>
 ```
 
 Set the variables from Terraform outputs:
@@ -83,6 +84,8 @@ gh variable set AKS_RESOURCE_GROUP --env production \
   --body "$(terraform -chdir=infra/terraform/platform output -raw aks_resource_group_name)"
 gh variable set KEY_VAULT_NAME --env production \
   --body "$(terraform -chdir=infra/terraform/platform output -raw key_vault_name)"
+gh variable set KEYVAULT_WORKLOAD_CLIENT_ID --env production \
+  --body "$(terraform -chdir=infra/terraform/platform output -raw keyvault_workload_client_id)"
 ```
 
 Verify names without printing secret values:
